@@ -126,6 +126,10 @@ feature_signature <- function(dna_features, bin_count){
   return(t(features_tabulation))
 }
 
+#=====================================================================
+# Function to implement coordinate signature method
+#=====================================================================
+
 coordinate_signature <- function(cgr_coords, bin_count){
   cgr_coords <- lapply(cgr_coords, 
                        function(x) preProcess(x, method = "zv") |>  predict(x))
