@@ -92,8 +92,8 @@ stopCluster(cl)
 # Volume intersection method results 
 #=====================================================================
 
-# Reduce samples.per.point and num.points.max to improve runtime or 
-# eliminate them altogether to use default values of the hypervolume package
+# Reduce samples.per.point and num.points.max to improve runtime or eliminate
+# the parameters altogether to use default values of the hypervolume package
 volume_intersection_method(beta_seq, samples.per.point = 5000, num.points.max = 150000)
 volume_intersection_method(nadh, samples.per.point = 5000, num.points.max = 150000)
 volume_intersection_method(sim_fas, samples.per.point = 5000, num.points.max = 150000)
