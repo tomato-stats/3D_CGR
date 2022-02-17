@@ -9,5 +9,5 @@ The purpose of this analysis was to:
 This directory contains:
 
 - example.R = the script to produce the phylogenetic tree results and various explanatory plots in the paper
-- explorations = the scripts to replicate the explorations and plots regarding the relationship between different mutation types
+- explorations/ = directory containing the scripts to replicate the explorations and plots regarding the relationship between different mutation types
 - data/ = directory containing the DNA sequences used to generate the plots and results
