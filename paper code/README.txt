@@ -1,4 +1,4 @@
-Data and scripts in this directory reproduce the plots and results of my thesis, "The use of 3D chaos game representation for DNA sequence analysis with applications for building phylogenetic trees?
+Data and scripts in this directory reproduce the plots and results of my thesis, "The use of 3D chaos game representation for DNA sequence analysis with applications for building phylogenetic trees"
 
 The purpose of this analysis was to:
 
