@@ -94,9 +94,21 @@ stopCluster(cl)
 
 # Reduce samples.per.point and num.points.max to improve runtime or eliminate
 # the parameters altogether to use default values of the hypervolume package
-volume_intersection_method(beta_seq, samples.per.point = 5000, num.points.max = 150000)
-volume_intersection_method(nadh, samples.per.point = 5000, num.points.max = 150000)
-volume_intersection_method(sim_fas, samples.per.point = 5000, num.points.max = 150000)
+volume_intersection_tanimoto(beta_seq, samples.per.point = 5000, num.points.max = 150000) %>% 
+  print(plot(hclust(as.dist(1-.), method = "complete" ), 
+           axes = F, xlab = NULL, ylab = NULL, main = NULL, 
+           sub = NULl, ann = F, cex = .75))
+
+volume_intersection_tanimoto(nadh, samples.per.point = 5000, num.points.max = 150000) %>% 
+  print(plot(hclust(as.dist(1-.), method = "complete" ), 
+             axes = F, xlab = NULL, ylab = NULL, main = NULL, 
+             sub = NULl, ann = F, cex = .75))
+
+volume_intersection_tanimoto(sim_fas, samples.per.point = 5000, num.points.max = 150000) %>% 
+  print(plot(hclust(as.dist(1-.), method = "complete" ), 
+             axes = F, xlab = NULL, ylab = NULL, main = NULL, 
+             sub = NULl, ann = F, cex = .75))
+
 
 #=====================================================================
 # Demonstrative plots in the paper

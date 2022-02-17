@@ -162,19 +162,19 @@ coordinate_signature <- function(cgr_coords, bin_count){
 # Function to implement volume intersection method
 #=====================================================================
 
-volume_intersection_method <- function(sequence_list, bandwidth = 0.003, ...){
+volume_intersection_tanimoto <- function(sequence_list, bandwidth = 0.003, ...){
   output <- matrix(1, nrow = length(sequence_list), ncol = length(sequence_list))
   
   hypervolumes1 <- seq_to_hypercomplex_cg4(sequence_list[[1]]) |> (\(x)(x[-1,-1]))() |> 
-    (\(x)(hypervolume_gaussian(data= x, sd = 4, 
-                               kde.bandwidth = estimate_bandwidth(data=x, method = "fixed", value = bandwidth, ...),
-                               name = names(sequence_list)[[1]])))()
+    (\(x)(hypervolume_gaussian(data= x, sd.count = 4, 
+                               kde.bandwidth = estimate_bandwidth(data=x, method = "fixed", value = bandwidth),
+                               name = names(sequence_list)[[1]], ...)))()
   
   for(i in 2:length(sequence_list)){
     append_me <- seq_to_hypercomplex_cg4(sequence_list[[i]]) |> (\(x)(x[-1,-1]))() |> 
-      (\(x)(hypervolume_gaussian(data= x, sd = 4, 
-                                 kde.bandwidth = estimate_bandwidth(data=x, method = "fixed", value = bandwidth, ...),
-                                 name = names(sequence_list)[[i]])))()
+      (\(x)(hypervolume_gaussian(data= x, sd.count = 4, 
+                                 kde.bandwidth = estimate_bandwidth(data=x, method = "fixed", value = bandwidth),
+                                 name = names(sequence_list)[[i]], ...)))()
     hypervolumes1 <- hypervolume_join(hypervolumes1, append_me)
     gc()
   }
@@ -183,7 +183,7 @@ volume_intersection_method <- function(sequence_list, bandwidth = 0.003, ...){
     for(j in (i+1):length(sequence_list)){
       test1 <- hypervolumes1[[i]]
       test2 <- hypervolumes1[[j]]
-      check <- hypervolume_set(test1, test2, check.memory = F)
+      check <- hypervolume_set(test1, test2, check.memory = F, ...)
       tanimoto <- check@HVList$Intersection@Volume / 
         (test1@Volume + test2@Volume - check@HVList$Intersection@Volume)
       output[i, j] <- tanimoto
@@ -193,11 +193,64 @@ volume_intersection_method <- function(sequence_list, bandwidth = 0.003, ...){
   }
   colnames(output) <- names(sequence_list)
   rownames(output) <- names(sequence_list)
-  par(mai = c(0, 0, 0, 0), lwd = 1)
-  print(plot(hclust(as.dist(1-output), method = "complete" ), 
-             axes = F, xlab = NULL, ylab = NULL, main = NULL, 
-             sub = NULl, ann = F, cex = .75))
+  return(output)
 }
 
 
+volume_intersection_tanimoto <- function(sequence_list, bandwidth = 0.003, ...){
+  output <- matrix(1, nrow = length(sequence_list), ncol = length(sequence_list))
+  
+  cl <- makeCluster(detectCores() - 1)
+  clusterExport(cl, 
+                c("str_split", 
+                  "seq_to_hypercomplex_cg4", "seq_to_hypercomplex_cg4_nr"), 
+                envir = environment())
+  
+  cg4_list <- parLapply(cl, sequence_list, function(dna_seq) seq_to_hypercomplex_cg4(dna_seq) |> (\(x)(x[-1,-1]))())  
+  stopCluster(cl)
+  
+  cl <- makeCluster(detectCores() - 1)
+  clusterEvalQ(cl, {
+    ## set up each worker.
+    library(hypervolume)
+  })
+  
+  clusterExport(cl, 
+                c("sequence_list", "cg4_list", "bandwidth"),
+                envir = environment())
+  
+  hypervolumes1 <- 
+    parLapply(cl, seq_along(sequence_list), 
+            function(i, ...) 
+              hypervolume_gaussian(cg4_list[[i]], sd.count = 4,  
+                                   kde.bandwidth = estimate_bandwidth(data=cg4_list[[i]], method = "fixed", value = bandwidth),
+                                   name = names(sequence_list)[[i]], ...))
+  gc()
+  pairwise_combn <- combn(1:length(sequence_list), 2, simplify = F)
+  output <- parLapply(cl, pairwise_combn, 
+            function(i, ...){
+              test1 <- hypervolumes1[[i[1]]]
+              test2 <- hypervolumes1[[i[2]]]
+              check <- hypervolume_set(test1, test2, check.memory = F, ...)
+              tanimoto <- check@HVList$Intersection@Volume / 
+                (test1@Volume + test2@Volume - check@HVList$Intersection@Volume)
+              data.frame(Var1 = c(i), 
+                         Var2 = c(rev(i)), 
+                         tanimoto = rep(tanimoto, 2))
+            }
+            )
+  stopCluster(cl)
+  output <- do.call(rbind, output)
+  output <- rbind(output, data.frame(Var1 = 1:length(sequence_list),
+                                     Var2 = 1:length(sequence_list), 
+                                     tanimoto = rep(1, length(sequence_list)))) |>
+    arrange(Var1, Var2)
+  output <- output |> 
+    pivot_wider(id_cols = Var1, names_from = Var2, values_from = tanimoto) |>
+    column_to_rownames("Var1") |> 
+    as.matrix()
 
+  colnames(output) <- names(sequence_list)
+  rownames(output) <- names(sequence_list)
+  return(output)
+}
