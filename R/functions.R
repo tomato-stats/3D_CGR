@@ -193,7 +193,6 @@ volume_intersection_method <- function(sequence_list, bandwidth = 0.003, ...){
   print(plot(hclust(as.dist(1-output), method = "complete" ), 
              axes = F, xlab = NULL, ylab = NULL, main = NULL, 
              sub = NULl, ann = F, cex = .75))
-  return(1-output)
 }
 
 
