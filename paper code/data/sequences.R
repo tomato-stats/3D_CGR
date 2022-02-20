@@ -2,7 +2,7 @@ library(haplotypes)
 
 # Simulated sequences
 
-sim_fas <- read.fas("Simutation.fas")
+sim_fas <- read.fas("./data/Simutation.fas")
 sim_fas <- apply(sim_fas@sequence, 1, paste, collapse="")
 sim_fas <- gsub("-", "", sim_fas)
 
