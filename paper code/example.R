@@ -11,6 +11,7 @@
 source("./data/sequences.R")
 source("../R/functions.R")
 
+library(reshape2)
 library(msa)
 library(seqinr)
 library(plotly)
@@ -19,6 +20,7 @@ library(magrittr)
 library(tidyverse)
 library(ggplot2)
 library(caret)
+library(parallel)
 
 set.seed(0)
 
@@ -51,12 +53,17 @@ clusterExport(cl,
                 "seq_to_hypercomplex_cg4", "seq_to_hypercomplex_cg4_nr"), 
               envir = environment())
 
-------------------
+#------------------
+  
+beta_cg <- parLapply(cl, beta_seq, seq_to_hypercomplex_cg4)  
+nadh_cg <- parLapply(cl, nadh, seq_to_hypercomplex_cg4)  
+sim_cg <- parLapply(cl, sim_fas, seq_to_hypercomplex_cg4)  
+  
 # Angular signature
 
-beta_features <- parLapply(cl, beta_seq, function(x) by3rowangle(seq_to_hypercomplex_cg4(x)))
-nadh_features <- parLapply(cl, nadh, function(x) by3rowangle(seq_to_hypercomplex_cg4(x)))
-sim_features <- parLapply(cl, sim_fas, function(x) by3rowangle(seq_to_hypercomplex_cg4(x)))
+beta_features <- parLapply(cl, beta_cg, by3rowangle)
+nadh_features <- parLapply(cl, nadh_cg, by3rowangle)
+sim_features <- parLapply(cl, sim_cg, by3rowangle)
 
 feature_signature(beta_features, bin_count = 6110) |>
   dist() |> hclust(method = "complete") |>
@@ -67,13 +74,12 @@ feature_signature(nadh_features, bin_count = 6110) |>
 feature_signature(sim_features, bin_count = 6110) |>
   dist() |> hclust(method = "complete") |>
   plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-
 
 # Edge signature
 
-beta_features <- parLapply(cl, beta_seq, function(x) by3rowdistance(seq_to_hypercomplex_cg4(x)))
-nadh_features <- parLapply(cl, nadh, function(x) by3rowdistance(seq_to_hypercomplex_cg4(x)))
-sim_features <- parLapply(cl, sim_fas, function(x) by3rowdistance(seq_to_hypercomplex_cg4(x)))
+beta_features <- parLapply(cl, beta_cg, by3rowdistance)
+nadh_features <- parLapply(cl, nadh_cg, by3rowdistance)
+sim_features <- parLapply(cl, sim_cg, by3rowdistance)
 
 feature_signature(beta_features, bin_count = 6110) |>
   dist() |> hclust(method = "complete") |>
@@ -85,26 +91,33 @@ feature_signature(sim_features, bin_count = 6110) |>
   dist() |> hclust(method = "complete") |>
   plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
 
-------------------
+#------------------
 stopCluster(cl)
 
 #=====================================================================
 # Volume intersection method results 
 #=====================================================================
 
+#This part of the code takes the longest to run. 
 # Reduce samples.per.point and num.points.max to improve runtime or eliminate
 # the parameters altogether to use default values of the hypervolume package
-volume_intersection_tanimoto(beta_seq, samples.per.point = 5000, num.points.max = 150000) %>% 
+volume_intersection_tanimoto(beta_seq, 
+                             hv_args = list(samples.per.point = 5000), 
+                             vi_args = list(num.points.max = 150000)) %>% 
   print(plot(hclust(as.dist(1-.), method = "complete" ), 
            axes = F, xlab = NULL, ylab = NULL, main = NULL, 
            sub = NULl, ann = F, cex = .75))
 
-volume_intersection_tanimoto(nadh, samples.per.point = 5000, num.points.max = 150000) %>% 
+volume_intersection_tanimoto(nadh, 
+                             hv_args = list(samples.per.point = 5000), 
+                             vi_args = list(num.points.max = 150000)) %>% 
   print(plot(hclust(as.dist(1-.), method = "complete" ), 
              axes = F, xlab = NULL, ylab = NULL, main = NULL, 
              sub = NULl, ann = F, cex = .75))
 
-volume_intersection_tanimoto(sim_fas, samples.per.point = 5000, num.points.max = 150000) %>% 
+volume_intersection_tanimoto(sim_fas, 
+                             hv_args = list(samples.per.point = 5000), 
+                             vi_args = list(num.points.max = 150000)) %>% 
   print(plot(hclust(as.dist(1-.), method = "complete" ), 
              axes = F, xlab = NULL, ylab = NULL, main = NULL, 
              sub = NULl, ann = F, cex = .75))
