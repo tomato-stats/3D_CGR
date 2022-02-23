@@ -83,7 +83,7 @@ angle_between_3pts <- function(p1, pv, p3){
   pv1 <- pt_dist(pv, p1)
   pv3 <- pt_dist(pv, p3)
   p13 <- pt_dist(p1, p3)
-  acos_input <- (pv1^2 + pv3^2 - p13^2) / (2 * pv1 * pv3)
+  acos_input <- round((pv1^2 + pv3^2 - p13^2) / (2 * pv1 * pv3), digits = 10)
   acos(acos_input)
 }
 
