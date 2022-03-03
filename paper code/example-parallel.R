@@ -11,7 +11,7 @@
 #=====================================================================
 
 source("./data/sequences.R")
-source("../R/functions.R")
+source("../R/functions-parallel.R")
 
 library(reshape2)
 library(msa)
