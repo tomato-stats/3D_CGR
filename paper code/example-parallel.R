@@ -1,6 +1,8 @@
 #####################################################################
 # Example DNA sequences analyzed by 3D CGR / paper reproduction
 # By: Stephanie Young <syoung2@sdsu.edu> <syoung49@its.jnj.com>
+# This code performs certain calculations in parallel 
+# and your machine must have parallel-running capabilities.
 #####################################################################
 
 #=====================================================================
@@ -45,11 +47,20 @@ clustal_omega_tree(sim_fas)
 # Shape signature results 
 #=====================================================================
 
-  
-beta_cg <- lapply(beta_seq, seq_to_hypercomplex_cg4)  
-nadh_cg <- lapply(nadh, seq_to_hypercomplex_cg4)  
-sim_cg <- lapply(sim_fas, seq_to_hypercomplex_cg4)  
-  
+cl <- makeCluster(detectCores() - 1)
+clusterExport(cl, 
+              c("str_split", 
+                "by3rowangle", "angle_between_3pts", "pt_dist",
+                "by3rowdistance", 
+                "seq_to_hypercomplex_cg4", "seq_to_hypercomplex_cg4_nr"), 
+              envir = environment())
+
+#------------------
+
+beta_cg <- parLapply(cl, beta_seq, seq_to_hypercomplex_cg4)  
+nadh_cg <- parLapply(cl, nadh, seq_to_hypercomplex_cg4)  
+sim_cg <- parLapply(cl, sim_fas, seq_to_hypercomplex_cg4)  
+
 # Angular signature
 
 beta_features <- parLapply(cl, beta_cg, by3rowangle)
@@ -82,6 +93,8 @@ feature_signature(sim_features, bin_count = 6110) |>
   dist() |> hclust(method = "complete") |>
   plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
 
+#------------------
+stopCluster(cl)
 
 #=====================================================================
 # Volume intersection method results 
@@ -94,8 +107,8 @@ volume_intersection_tanimoto(beta_seq,
                              hv_args = list(samples.per.point = 5000), 
                              vi_args = list(num.points.max = 150000)) %>% 
   print(plot(hclust(as.dist(1-.), method = "complete" ), 
-           axes = F, xlab = NULL, ylab = NULL, main = NULL, 
-           sub = NULl, ann = F, cex = .75))
+             axes = F, xlab = NULL, ylab = NULL, main = NULL, 
+             sub = NULl, ann = F, cex = .75))
 
 volume_intersection_tanimoto(nadh, 
                              hv_args = list(samples.per.point = 5000), 

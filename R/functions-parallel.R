@@ -117,7 +117,7 @@ feature_signature <- function(dna_features, bin_count){
   # Get histogram bin counts
   features_tabulation <- sapply(dna_features, 
                                 function(x) hist(x, breaks = features_breaks, plot = F)$counts)
-
+  
   # Calculate z-scores within organisms 
   features_tabulation <- 
     preProcess(features_tabulation, method = c("center", "scale")) |>
@@ -165,35 +165,50 @@ coordinate_signature <- function(cgr_coords, bin_count){
 volume_intersection_tanimoto <- function(sequence_list, bandwidth = 0.003, hv_args = list(), vi_args = list()){
   output <- matrix(1, nrow = length(sequence_list), ncol = length(sequence_list))
   
-  cg4_list <- lapply(sequence_list, function(dna_seq) seq_to_hypercomplex_cg4(dna_seq) |> (\(x)(x[-1,-1]))())  
+  cl <- makeCluster(detectCores() - 1)
+  clusterExport(cl, 
+                c("str_split", 
+                  "seq_to_hypercomplex_cg4", "seq_to_hypercomplex_cg4_nr"), 
+                envir = environment())
+  
+  cg4_list <- parLapply(cl, sequence_list, function(dna_seq) seq_to_hypercomplex_cg4_nr(dna_seq) |> (\(x)(x[-1,-1]))())  
+  
+  clusterEvalQ(cl, {
+    ## set up each worker.
+    library(hypervolume)
+  })
+  
+  clusterExport(cl, 
+                c("sequence_list", "cg4_list", "bandwidth"),
+                envir = environment())
   
   hypervolumes1 <- 
-    lapply(seq_along(sequence_list), 
-           function(i) 
-             do.call(hypervolume_gaussian, 
-                     c(list(cg4_list[[i]], sd.count = 4,  
-                            kde.bandwidth = estimate_bandwidth(data=cg4_list[[i]], method = "fixed", value = bandwidth),
-                            name = names(sequence_list)[[i]]), hv_args)))
+    parLapply(cl, seq_along(sequence_list), 
+              function(i) 
+                do.call(hypervolume_gaussian, c(list(cg4_list[[i]], sd.count = 4,  
+                                                     kde.bandwidth = estimate_bandwidth(data=cg4_list[[i]], method = "fixed", value = bandwidth),
+                                                     name = names(sequence_list)[[i]]), hv_args)))
   
+  gc()
   pairwise_combn <- combn(1:length(sequence_list), 2, simplify = F)
   
-  output <- 
-    lapply(pairwise_combn, 
-           function(i){
-             test1 <- hypervolumes1[[i[1]]]
-             test2 <- hypervolumes1[[i[2]]]
-             check <- do.call(hypervolume_set, c(list(hv1 = test1, hv2 = test2, check.memory = F), vi_args))
-             tanimoto <- check@HVList$Intersection@Volume / 
-               (test1@Volume + test2@Volume - check@HVList$Intersection@Volume)
-             data.frame(Var1 = c(i), 
-                        Var2 = c(rev(i)), 
-                        tanimoto = rep(tanimoto, 2))})
   
+  output <- parLapply(cl, pairwise_combn, 
+                      function(i){
+                        test1 <- hypervolumes1[[i[1]]]
+                        test2 <- hypervolumes1[[i[2]]]
+                        check <- do.call(hypervolume_set, c(list(hv1 = test1, hv2 = test2, check.memory = F), vi_args))
+                        tanimoto <- check@HVList$Intersection@Volume / 
+                          (test1@Volume + test2@Volume - check@HVList$Intersection@Volume)
+                        data.frame(Var1 = c(i), 
+                                   Var2 = c(rev(i)), 
+                                   tanimoto = rep(tanimoto, 2))})
+  
+  stopCluster(cl)
   output <- do.call(rbind, output)
-  output <- 
-    rbind(output, data.frame(Var1 = 1:length(sequence_list),
-                             Var2 = 1:length(sequence_list), 
-                             tanimoto = rep(1, length(sequence_list)))) |>
+  output <- rbind(output, data.frame(Var1 = 1:length(sequence_list),
+                                     Var2 = 1:length(sequence_list), 
+                                     tanimoto = rep(1, length(sequence_list)))) |>
     arrange(Var1, Var2)
   output <- output |> 
     pivot_wider(id_cols = Var1, names_from = Var2, values_from = tanimoto) |>
@@ -204,4 +219,3 @@ volume_intersection_tanimoto <- function(sequence_list, bandwidth = 0.003, hv_ar
   rownames(output) <- names(sequence_list)
   return(output)
 }
-
