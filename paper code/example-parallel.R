@@ -1,8 +1,8 @@
 #####################################################################
 # Example DNA sequences analyzed by 3D CGR / paper reproduction
-# By: Stephanie Young <syoung2@sdsu.edu> <syoung49@its.jnj.com>
 # This code performs certain calculations in parallel 
 # and your machine must have parallel-running capabilities.
+# By: Stephanie Young <syoung2@sdsu.edu> <syoung49@its.jnj.com>
 #####################################################################
 
 #=====================================================================

@@ -1,7 +1,7 @@
 #####################################################################
 # Example DNA sequences analyzed by 3D CGR / paper reproduction
-# By: Stephanie Young <syoung2@sdsu.edu> <syoung49@its.jnj.com>
 # This code does not run in parallel and can take a while to run.
+# By: Stephanie Young <syoung2@sdsu.edu> <syoung49@its.jnj.com>
 #####################################################################
 
 #=====================================================================
@@ -53,9 +53,9 @@ sim_cg <- lapply(sim_fas, seq_to_hypercomplex_cg4)
   
 # Angular signature
 
-beta_features <- parLapply(cl, beta_cg, by3rowangle)
-nadh_features <- parLapply(cl, nadh_cg, by3rowangle)
-sim_features <- parLapply(cl, sim_cg, by3rowangle)
+beta_features <- lapply(beta_cg, by3rowangle)
+nadh_features <- lapply(nadh_cg, by3rowangle)
+sim_features <- lapply(sim_cg, by3rowangle)
 
 feature_signature(beta_features, bin_count = 6110) |>
   dist() |> hclust(method = "complete") |>
@@ -69,9 +69,9 @@ feature_signature(sim_features, bin_count = 6110) |>
 
 # Edge signature
 
-beta_features <- parLapply(cl, beta_cg, by3rowdistance)
-nadh_features <- parLapply(cl, nadh_cg, by3rowdistance)
-sim_features <- parLapply(cl, sim_cg, by3rowdistance)
+beta_features <- lapply(beta_cg, by3rowdistance)
+nadh_features <- lapply(nadh_cg, by3rowdistance)
+sim_features <- lapply(sim_cg, by3rowdistance)
 
 feature_signature(beta_features, bin_count = 6110) |>
   dist() |> hclust(method = "complete") |>
