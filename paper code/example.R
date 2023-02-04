@@ -83,6 +83,17 @@ feature_signature(sim_features, bin_count = 6110) |>
   dist() |> hclust(method = "complete") |>
   plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
 
+# Coordinate signature
+
+coordinate_signature(beta_cg, bin_count = 6110) |>
+  dist() |> hclust(method = "complete") |>
+  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
+coordinate_signature(nadh_cg, bin_count = 6110) |>
+  dist() |> hclust(method = "complete") |>
+  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
+coordinate_signature(sim_cg, bin_count = 6110) |>
+  dist() |> hclust(method = "complete") |>
+  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
 
 #=====================================================================
 # Volume intersection method results 
