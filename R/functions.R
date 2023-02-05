@@ -10,59 +10,46 @@ library(hypervolume)
 # Convert a DNA sequence to 3D CGR 
 #=====================================================================
 
-# (recursive implementation)
-seq_to_hypercomplex_cg4 <- function(dna_seq){ 
-  if(length(dna_seq) == 1) dna_seq <- str_split(dna_seq, "")[[1]]
-  A <- (c(0, 0, 0) - (1/2)) * 2*sqrt(1/3)
-  T <- (c(1, 1, 0) - (1/2)) * 2*sqrt(1/3) 
-  C <- (c(1, 0, 1) - (1/2)) * 2*sqrt(1/3)
-  G <- (c(0, 1, 1) - (1/2)) * 2*sqrt(1/3)
-  cg <- data.frame(i = 0,
-                   j = 0, 
-                   k = 0)
-  for(i in seq_along(dna_seq)){
-    last_obs <- cg[nrow(cg), ]
-    letter_values <- get(dna_seq[i])
-    cg <- rbind(cg, 
-                data.frame(i = mean(c(last_obs[[1]], letter_values[1])),
-                           j = mean(c(last_obs[[2]], letter_values[2])),
-                           k = mean(c(last_obs[[3]], letter_values[3])))
-    )
-  }
-  cg[["r"]] <- 0
-  cg <- cg[, c("r", "i", "j", "k")]
-  return(cg)
+# Coordinate table
+## Function to make a table containing 3DCGR coordinates
+CGR_table <- function(A_, T_, C_, G_){
+  output <- rbind(A_, T_, C_, G_) |> as.data.frame() 
+  colnames(output) <- c("i", "j", "k")
+  rownames(output)
+  output[["Nucleotide"]] <- c("A", "T", "C", "G")
+  output
 }
 
+coord1 <- CGR_table(
+  (c(0, 0, 0) - (1/2)) * 2*sqrt(1/3),
+  (c(1, 1, 0) - (1/2)) * 2*sqrt(1/3),
+  (c(1, 0, 1) - (1/2)) * 2*sqrt(1/3),
+  (c(0, 1, 1) - (1/2)) * 2*sqrt(1/3)
+)
+
+coord2 <- CGR_table(
+  c(0, 0, 1),
+  c(2*sqrt(2) / 3, 0, -1/3),
+  c(-sqrt(2)/3, sqrt(6)/3, -1/3),
+  c(-sqrt(2)/3, -sqrt(6)/3, -1/3)
+)
+
 # (non-recursive implementation)
-seq_to_hypercomplex_cg4_nr <- function(dna_seq){ 
+seq_to_hypercomplex_cg4 <- function(dna_seq, CGR_coord = coord1){
+  # The input to this function is the DNA sequence and 
+  # a table of the CGR coordinates to be used
   if(length(dna_seq) == 1) dna_seq <- str_split(dna_seq, "")[[1]]
-  A <- (c(0, 0, 0) - (1/2)) * 2*sqrt(1/3) 
-  T <- (c(1, 1, 0) - (1/2)) * 2*sqrt(1/3) 
-  C <- (c(1, 0, 1) - (1/2)) * 2*sqrt(1/3)
-  G <- (c(0, 1, 1) - (1/2)) * 2*sqrt(1/3)
+  temp <- CGR_coord[match(dna_seq, CGR_coord$Nucleotide), ]
   r <- 1/2
-  cg <- data.frame(i = 0,
-                   j = 0, 
-                   k = 0)
-  y <- function(i){
-    S_i = dna_seq[i]
-    if(S_i == "A") return(A)
-    if(S_i == "T") return(T)
-    if(S_i == "C") return(C)
-    if(S_i == "G") return(G)
-    else return("error")
-  }
-  y.Vectorize <- Vectorize(y, "i")
-  i <- seq_along(dna_seq)
-  cg <- lapply(i, 
-               function(j){ 
-                 k <- 1:j
-                 rowSums(r * rep((1-r)^(k-1), each = 3) * y.Vectorize(j-k+1))
-               }
-  )
+  cg <- 
+    lapply(
+      1:nrow(temp), 
+      function(j){
+        k <- 1:j
+        rowSums(r * rep((1-r)^(k-1), each = 3) * t(temp[j-k+1,1:3]))
+      }
+    )
   cg <- do.call(rbind, cg) |> as.data.frame()
-  colnames(cg) <- c("i", "j", "k")
   cg[["r"]] <- 0
   cg <- cg[, c("r", "i", "j", "k")]
   cg <- rbind(data.frame(r = 0, i = 0, j = 0, k = 0), cg)
