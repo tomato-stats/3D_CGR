@@ -34,8 +34,30 @@ coord2 <- CGR_table(
   c(-sqrt(2)/3, -sqrt(6)/3, -1/3)
 )
 
+# (recursive implementation)
+seq_to_hypercomplex_cg4 <- function(dna_seq, CGR_coord = coord1){ 
+  # The input to this function is the DNA sequence and 
+  # a table of the CGR coordinates to be used
+  if(length(dna_seq) == 1) dna_seq <- str_split(dna_seq, "")[[1]]
+  
+  cg <- data.frame(i = 0, j = 0, k = 0)
+  temp <- CGR_coord[match(dna_seq, CGR_coord$Nucleotide), 1:3]
+  for(i in seq_along(dna_seq)){
+    last_obs <- cg[nrow(cg), ]
+    letter_values <- temp[i,1:3]
+    cg <- rbind(cg, 
+                data.frame(i = mean(c(last_obs[[1]], letter_values[[1]])),
+                           j = mean(c(last_obs[[2]], letter_values[[2]])),
+                           k = mean(c(last_obs[[3]], letter_values[[3]])))
+    )
+  }
+  cg[["r"]] <- 0
+  cg <- cg[, c("r", "i", "j", "k")]
+  return(cg)
+}
+
 # (non-recursive implementation)
-seq_to_hypercomplex_cg4 <- function(dna_seq, CGR_coord = coord1){
+seq_to_hypercomplex_cg4_nr <- function(dna_seq, CGR_coord = coord1){
   # The input to this function is the DNA sequence and 
   # a table of the CGR coordinates to be used
   if(length(dna_seq) == 1) dna_seq <- str_split(dna_seq, "")[[1]]
