@@ -5,76 +5,65 @@
 
 library(stringr)
 library(hypervolume)
-
+library(Rcpp)
 #=====================================================================
 # Convert a DNA sequence to 3D CGR 
 #=====================================================================
 
 # Coordinate table
 ## Function to make a table containing 3DCGR coordinates
-CGR_table <- function(A_, T_, C_, G_){
-  output <- rbind(A_, T_, C_, G_) |> as.data.frame() 
+CGR_table <- function(A_, C_, G_, T_){
+  output <- rbind(A_, C_, G_, T_) |> as.data.frame() 
   colnames(output) <- c("i", "j", "k")
   rownames(output)
-  output[["Nucleotide"]] <- c("A", "T", "C", "G")
+  output[["Nucleotide"]] <- c("A", "C", "G", "T")
+  output <- 
+    rbind(
+      output, 
+      data.frame(output[output$Nucleotide %in% c("A", "G"),1:3] |> colMeans() |> t(), Nucleotide ="R"),
+      data.frame(output[output$Nucleotide %in% c("C", "T"),1:3] |> colMeans() |> t(), Nucleotide ="Y"),
+      data.frame(output[output$Nucleotide %in% c("G", "T"),1:3] |> colMeans() |> t(), Nucleotide ="K"),
+      data.frame(output[output$Nucleotide %in% c("A", "C"),1:3] |> colMeans() |> t(), Nucleotide ="M"),
+      data.frame(output[output$Nucleotide %in% c("C", "G"),1:3] |> colMeans() |> t(), Nucleotide ="S"),
+      data.frame(output[output$Nucleotide %in% c("A", "T"),1:3] |> colMeans() |> t(), Nucleotide ="W"),
+      data.frame(output[output$Nucleotide %in% c("C", "G", "T"),1:3] |> colMeans() |> t(), Nucleotide ="B"),
+      data.frame(output[output$Nucleotide %in% c("A", "G", "T"),1:3] |> colMeans() |> t(), Nucleotide ="D"),
+      data.frame(output[output$Nucleotide %in% c("A", "C", "T"),1:3] |> colMeans() |> t(), Nucleotide ="H"),
+      data.frame(output[output$Nucleotide %in% c("A", "C", "G"),1:3] |> colMeans() |> t(), Nucleotide ="V"),
+      data.frame(i = 0, j = 0, k = 0, Nucleotide = "N")
+    )
   output
 }
 
 coord1 <- CGR_table(
   (c(0, 0, 0) - (1/2)) * 2*sqrt(1/3),
-  (c(1, 1, 0) - (1/2)) * 2*sqrt(1/3),
   (c(1, 0, 1) - (1/2)) * 2*sqrt(1/3),
-  (c(0, 1, 1) - (1/2)) * 2*sqrt(1/3)
+  (c(0, 1, 1) - (1/2)) * 2*sqrt(1/3),
+  (c(1, 1, 0) - (1/2)) * 2*sqrt(1/3)
 )
 
 coord2 <- CGR_table(
   c(0, 0, 1),
-  c(2*sqrt(2) / 3, 0, -1/3),
   c(-sqrt(2)/3, sqrt(6)/3, -1/3),
-  c(-sqrt(2)/3, -sqrt(6)/3, -1/3)
+  c(-sqrt(2)/3, -sqrt(6)/3, -1/3),
+  c(2*sqrt(2) / 3, 0, -1/3)
 )
+
+sourceCpp("./R/chaosgame.cpp") 
 
 # (recursive implementation)
 seq_to_hypercomplex_cg4 <- function(dna_seq, CGR_coord = coord1){ 
   # The input to this function is the DNA sequence and 
   # a table of the CGR coordinates to be used
-  if(length(dna_seq) == 1) dna_seq <- str_split(dna_seq, "")[[1]]
+  if(length(dna_seq) == 1) dna_seq <- str_split(toupper(dna_seq), "")[[1]]
   
+  dna_seq <- dna_seq[which(dna_seq != "-")]
+  
+  cg <- chaosGame(dna_seq, as.matrix(CGR_coord[,1:3]))
   cg <- data.frame(i = 0, j = 0, k = 0)
   temp <- CGR_coord[match(dna_seq, CGR_coord$Nucleotide), 1:3]
-  for(i in seq_along(dna_seq)){
-    last_obs <- cg[nrow(cg), ]
-    letter_values <- temp[i,1:3]
-    cg <- rbind(cg, 
-                data.frame(i = mean(c(last_obs[[1]], letter_values[[1]])),
-                           j = mean(c(last_obs[[2]], letter_values[[2]])),
-                           k = mean(c(last_obs[[3]], letter_values[[3]])))
-    )
-  }
   cg[["r"]] <- 0
   cg <- cg[, c("r", "i", "j", "k")]
-  return(cg)
-}
-
-# (non-recursive implementation)
-seq_to_hypercomplex_cg4_nr <- function(dna_seq, CGR_coord = coord1){
-  # The input to this function is the DNA sequence and 
-  # a table of the CGR coordinates to be used
-  if(length(dna_seq) == 1) dna_seq <- str_split(dna_seq, "")[[1]]
-  temp <- CGR_coord[match(dna_seq, CGR_coord$Nucleotide), ]
-  r <- 1/2
-  cg <- 
-    lapply(
-      1:nrow(temp), 
-      function(j){
-        k <- 1:j
-        rowSums(r * rep((1-r)^(k-1), each = 3) * t(temp[j-k+1,1:3]))
-      }
-    )
-  cg <- do.call(rbind, cg) |> as.data.frame()
-  cg[["r"]] <- 0
-  cg <- cg[, c("r", "i", "j", "k")]
-  cg <- rbind(data.frame(r = 0, i = 0, j = 0, k = 0), cg)
   return(cg)
 }
 
@@ -83,10 +72,6 @@ seq_to_hypercomplex_cg4_nr <- function(dna_seq, CGR_coord = coord1){
 #=====================================================================
 
 ## Functions related to angular signature
-
-pt_dist <- function(p1, p2){
-  sqrt(sum((p1 - p2)^2))
-}
 
 angle_between_3pts <- function(p1, pv, p3){
   pv1 <- pt_dist(pv, p1)
@@ -103,10 +88,16 @@ by3rowangle <- function(df){
 
 ## Functions related to edge signature
 
-by3rowdistance <- function(df){
-  i <- 3:nrow(df)
-  angles <- sapply(i, function(x) pt_dist(df[x,], df[x-2,]))
-}
+sourceCpp("./R/3rowdistance.cpp")
+
+# pt_dist <- function(p1, p2){
+#   sqrt(sum((p1 - p2)^2))
+# }
+#
+# by3rowdistance <- function(df){
+#   i <- 3:nrow(df)
+#   angles <- sapply(i, function(x) pt_dist(df[x,], df[x-2,]))
+# }
 
 ## Functions related to coordinate signature 
 
