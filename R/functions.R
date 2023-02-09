@@ -60,9 +60,9 @@ seq_to_hypercomplex_cg4 <- function(dna_seq, CGR_coord = coord1){
   dna_seq <- dna_seq[which(dna_seq != "-")]
   
   cg <- chaosGame(dna_seq, as.matrix(CGR_coord[,1:3]))
-  cg <- data.frame(i = 0, j = 0, k = 0)
-  temp <- CGR_coord[match(dna_seq, CGR_coord$Nucleotide), 1:3]
+  colnames(cg) <- c("i", "j", "k")
   cg[["r"]] <- 0
+  
   cg <- cg[, c("r", "i", "j", "k")]
   return(cg)
 }
