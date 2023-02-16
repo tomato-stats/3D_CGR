@@ -37,6 +37,8 @@ coord2 <- CGR_table(
 
 # (recursive implementation)
 seq_to_hypercomplex_cg4 <- function(dna_seq){ 
+  # The input to this function is the DNA sequence and 
+  # a table of the CGR coordinates to be used
   if(length(dna_seq) == 1) dna_seq <- str_split(dna_seq, "")[[1]]
   A <- (c(0, 0, 0) - (1/2)) * 2*sqrt(1/3)
   T <- (c(1, 1, 0) - (1/2)) * 2*sqrt(1/3) 

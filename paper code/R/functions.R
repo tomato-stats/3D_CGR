@@ -60,7 +60,6 @@ seq_to_hypercomplex_cg4 <- function(dna_seq, CGR_coord = coord1){
   dna_seq <- dna_seq[which(dna_seq != "-")]
   
   cg <- chaosGame(dna_seq, as.matrix(CGR_coord[,1:3]))
-  colnames(cg) <- c("i", "j", "k")
   cg[["r"]] <- 0
   
   cg <- cg[, c("r", "i", "j", "k")]
@@ -71,33 +70,14 @@ seq_to_hypercomplex_cg4 <- function(dna_seq, CGR_coord = coord1){
 # Functions necessary for shape signature methods
 #=====================================================================
 
-## Functions related to angular signature
+sourceCpp("./R/features.cpp")
 
-angle_between_3pts <- function(p1, pv, p3){
-  pv1 <- pt_dist(pv, p1)
-  pv3 <- pt_dist(pv, p3)
-  p13 <- pt_dist(p1, p3)
-  acos_input <- round((pv1^2 + pv3^2 - p13^2) / (2 * pv1 * pv3), digits = 10)
-  acos(acos_input)
+distance_from_vertices <- function(points, CGR_coord = coord1){
+  if(!is.matrix(points)) points <- as.matrix(points)
+  if(all(points[1,] == 0)) points <- points[-1,]
+  if(all(points[,1] == 0)) points <- points[,-1]
+  distance_matrix(points, as.matrix(coord1[1:4,1:3]))
 }
-
-by3rowangle <- function(df){
-  i <- 3:nrow(df)
-  angles <- sapply(i, function(x) angle_between_3pts(df[x,], df[x-1,], df[x-2,]))
-}
-
-## Functions related to edge signature
-
-sourceCpp("./R/3rowdistance.cpp")
-
-# pt_dist <- function(p1, p2){
-#   sqrt(sum((p1 - p2)^2))
-# }
-#
-# by3rowdistance <- function(df){
-#   i <- 3:nrow(df)
-#   angles <- sapply(i, function(x) pt_dist(df[x,], df[x-2,]))
-# }
 
 ## Functions related to coordinate signature 
 
@@ -131,8 +111,14 @@ feature_signature <- function(dna_features, bin_count){
 #=====================================================================
 
 coordinate_signature <- function(cgr_coords, bin_count){
+  # Remove columns with constant data
   cgr_coords <- lapply(cgr_coords, 
                        function(x) preProcess(x, method = "zv") |>  predict(x))
+  
+  # Remove row of zeros if there is one 
+  if(all(sapply(sars_seq, function(x) all(x[1,]==0)))){
+    cgr_coords <- lapply(cgr_coords, function(x) x[-1,])
+  }
   
   # Get histogram bounds
   hist_lb <- apply(do.call(rbind, cgr_coords), 2, min)

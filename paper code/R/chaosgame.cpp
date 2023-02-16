@@ -84,9 +84,9 @@ for (int i = 0; i < n; i++) {
   prevCoords = coords(i + 1, _);
 }
 
-return DataFrame::create(_["X"] = coords(_, 0),
-                         _["Y"] = coords(_, 1),
-                         _["Z"] = coords(_, 2));
+return DataFrame::create(_["i"] = coords(_, 0),
+                         _["j"] = coords(_, 1),
+                         _["k"] = coords(_, 2));
 }
 
 
