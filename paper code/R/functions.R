@@ -52,7 +52,7 @@ coord2 <- CGR_table(
 sourceCpp("./R/chaosgame.cpp") 
 
 # (recursive implementation)
-seq_to_hypercomplex_cg4 <- function(dna_seq, CGR_coord = coord1){ 
+seq_to_hypercomplex_cg4 <- function(dna_seq, CGR_coord = coord1, df = F){ 
   # The input to this function is the DNA sequence and 
   # a table of the CGR coordinates to be used
   if(length(dna_seq) == 1) dna_seq <- str_split(toupper(dna_seq), "")[[1]]
@@ -60,9 +60,13 @@ seq_to_hypercomplex_cg4 <- function(dna_seq, CGR_coord = coord1){
   dna_seq <- dna_seq[which(dna_seq != "-")]
   
   cg <- chaosGame(dna_seq, as.matrix(CGR_coord[,1:3]))
-  cg[["r"]] <- 0
-  
-  cg <- cg[, c("r", "i", "j", "k")]
+  if(df){
+    cg <- data.frame(cg)
+    cg[["r"]] <- 0
+    
+    cg <- cg[, c("r", "i", "j", "k")]
+  }
+  else colnames(cg) <- c("i", "j", "k")
   return(cg)
 }
 
@@ -116,7 +120,7 @@ coordinate_signature <- function(cgr_coords, bin_count){
                        function(x) preProcess(x, method = "zv") |>  predict(x))
   
   # Remove row of zeros if there is one 
-  if(all(sapply(sars_seq, function(x) all(x[1,]==0)))){
+  if(all(sapply(cgr_coords, function(x) all(x[1,]==0)))){
     cgr_coords <- lapply(cgr_coords, function(x) x[-1,])
   }
   

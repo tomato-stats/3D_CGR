@@ -64,29 +64,52 @@ NumericVector nextCoords(const char &base, const NumericVector &prevCoords,
 }
 
 // [[Rcpp::export]]
-DataFrame chaosGame(const CharacterVector &bases, const NumericMatrix &baseCoords) {
-int n = bases.size();
-NumericMatrix coords(n + 1, baseCoords.ncol());
+DataFrame chaosGameDF(const CharacterVector &bases, const NumericMatrix &baseCoords) {
+  int n = bases.size();
+  NumericMatrix coords(n + 1, baseCoords.ncol());
+  
+  // Add a row of zeros at the top of the matrix
+  for (int j = 0; j < coords.ncol(); j++) {
+    coords(0, j) = 0.0;
+  }
+  
+  NumericVector prevCoords(baseCoords.ncol());
+  for (int i = 0; i < prevCoords.size(); i++) {
+    prevCoords[i] = 0;
+  }
+  
+  for (int i = 0; i < n; i++) {
+    std::string base = Rcpp::as<std::string>(bases[i]);
+    coords(i + 1, _) = nextCoords(base[0], prevCoords, baseCoords);
+    prevCoords = coords(i + 1, _);
+  }
+  
+  return DataFrame::create(_["i"] = coords(_, 0),
+                           _["j"] = coords(_, 1),
+                           _["k"] = coords(_, 2));
 
-// Add a row of zeros at the top of the matrix
-for (int j = 0; j < coords.ncol(); j++) {
-  coords(0, j) = 0.0;
 }
 
-NumericVector prevCoords(baseCoords.ncol());
-for (int i = 0; i < prevCoords.size(); i++) {
-  prevCoords[i] = 0;
+// [[Rcpp::export]]
+NumericMatrix chaosGame(const CharacterVector &bases, const NumericMatrix &baseCoords) {
+  int n = bases.size();
+  NumericMatrix coords(n + 1, baseCoords.ncol());
+  
+  // Add a row of zeros at the top of the matrix
+  for (int j = 0; j < coords.ncol(); j++) {
+    coords(0, j) = 0.0;
+  }
+  
+  NumericVector prevCoords(baseCoords.ncol());
+  for (int i = 0; i < prevCoords.size(); i++) {
+    prevCoords[i] = 0;
+  }
+  
+  for (int i = 0; i < n; i++) {
+    std::string base = Rcpp::as<std::string>(bases[i]);
+    coords(i + 1, _) = nextCoords(base[0], prevCoords, baseCoords);
+    prevCoords = coords(i + 1, _);
+  }
+  
+  return coords;
 }
-
-for (int i = 0; i < n; i++) {
-  std::string base = Rcpp::as<std::string>(bases[i]);
-  coords(i + 1, _) = nextCoords(base[0], prevCoords, baseCoords);
-  prevCoords = coords(i + 1, _);
-}
-
-return DataFrame::create(_["i"] = coords(_, 0),
-                         _["j"] = coords(_, 1),
-                         _["k"] = coords(_, 2));
-}
-
-
