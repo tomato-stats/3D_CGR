@@ -10,10 +10,10 @@
 #=====================================================================
 
 source("./data/sequences.R")
-source("../R/functions.R")
+source("./R/functions.R")
 
 library(reshape2)
-library(msa)
+library(msa) # From Bioconductor
 library(seqinr)
 library(plotly)
 library(stringr)
@@ -67,6 +67,19 @@ feature_signature(sim_features, bin_count = 6110) |>
   dist() |> hclust(method = "complete") |>
   plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
 
+
+feature_signature(beta_features, bin_count = max(sapply(beta_cg, nrow))) |>
+  dist() |> hclust(method = "complete") |>
+  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
+feature_signature(nadh_features, bin_count = max(sapply(nadh_cg, nrow))) |>
+  dist() |> hclust(method = "complete") |>
+  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
+feature_signature(sim_features, bin_count = max(sapply(sim_cg, nrow))) |>
+  dist() |> hclust(method = "complete") |>
+  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
+
+
+
 # Edge signature
 
 beta_features <- lapply(beta_cg, by3rowdistance)
@@ -82,6 +95,7 @@ feature_signature(nadh_features, bin_count = 6110) |>
 feature_signature(sim_features, bin_count = 6110) |>
   dist() |> hclust(method = "complete") |>
   plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
+
 
 # Coordinate signature
 
