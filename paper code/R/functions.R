@@ -94,6 +94,18 @@ hist_df_unpaired <- function(df, breaks){
 # Function to implement feature signature methods 
 # (applicable to angles and edges)
 #=====================================================================
+
+feature_histograms <- function(dna_features, bin_count){
+  features_breaks <- seq(min(unlist(dna_features)), max(unlist(dna_features)), 
+                         length.out = bin_count + 1)
+  
+  # Get histogram bin counts
+  features_tabulation <- sapply(dna_features, 
+                                function(x) hist(x, breaks = features_breaks, plot = F)$counts)
+  
+  return(t(features_tabulation))
+}
+
 feature_signature <- function(dna_features, bin_count){
   features_breaks <- seq(min(unlist(dna_features)), max(unlist(dna_features)), 
                          length.out = bin_count + 1)
