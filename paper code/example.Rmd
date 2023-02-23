@@ -138,6 +138,28 @@ hist_paired(temp, bin_count = max(nchar(sim_fas)) / 2 ) |>
   kdist() |> as.dist() |> hclust(method = "complete") |>
   plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
 
+
+
+temp <- lapply(seq_along(beta_seq), function(i) cbind(beta_features_a[[i]], beta_cg[[i]][-c(1, lapply(beta_cg, nrow)[[i]]),1]))
+names(temp) <- names(beta_seq)
+hist_paired(temp, bin_count = max(nchar(beta_seq)) / 2 ) |>
+  kdist() |> as.dist() |> hclust(method = "complete") |>
+  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
+
+temp <- lapply(seq_along(nadh), function(i) cbind(nadh_features_a[[i]],  nadh_cg[[i]][-c(1, lapply(nadh_cg, nrow)[[i]]),1]))
+names(temp) <- names(nadh)
+hist_paired(temp, bin_count = max(nchar(nadh)) / 2 ) |>
+  kdist() |> as.dist() |> hclust(method = "complete") |>
+  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
+
+temp <- lapply(seq_along(sim_fas), function(i) cbind(sim_features_a[[i]],  sim_cg[[i]][-c(1, lapply(sim_cg, nrow)[[i]]),1]))
+names(temp) <- names(sim_fas)
+hist_paired(temp, bin_count = max(nchar(sim_fas)) / 2 ) |>
+  kdist() |> as.dist() |> hclust(method = "complete") |>
+  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
+
+
+
 # Edge signature
 
 beta_features <- lapply(beta_cg, by3rowdistance)
@@ -156,6 +178,22 @@ feature_histograms(sim_features, bin_count = 2*max(nchar(sim_fas))) |>
 
 
 # Coordinate signature
+
+
+coordinate_signature(beta_cg, bin_count = 2*max(sapply(beta_cg, nrow))/3) |>
+  (\(x)(log(x + abs(min(x)) + 0.1) -log(1.1))/ (log(.1) - log(1.1)))() |> 
+  dist()|> hclust(method = "complete") |>
+  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
+coordinate_signature(nadh_cg, bin_count = 2*max(sapply(nadh_cg, nrow))/3) |>
+  (\(x)(log(x + abs(min(x)) + 0.1) -log(1.1))/ (log(.1) - log(1.1)))() |> 
+  dist()|> hclust(method = "complete") |>
+  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
+coordinate_signature(sim_cg, bin_count = 2*max(sapply(sim_cg, nrow))/3) |>
+  (\(x)(log(x + abs(min(x)) + 0.1) -log(1.1))/ (log(.1) - log(1.1)))() |> 
+  dist()|> hclust(method = "complete") |>
+  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
+
+
 
 coordinate_histograms(beta_cg, bin_count = 2*max(sapply(beta_cg, nrow))/3) |>
   kdist() |> as.dist() |> hclust(method = "complete") |>

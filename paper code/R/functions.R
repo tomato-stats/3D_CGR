@@ -250,6 +250,32 @@ kdist2 <- function(input_hist) {
   return(res)
 }
 
+kdist5 <- function(input_hist) {
+  # Input is a histogram with each row associated with an organism 
+  # and and each column corresponds to a histogram bin
+  n_organisms <- nrow(input_hist)
+  seq_lengths <- rowSums(input_hist)
+  Fij <- matrix(0, nrow = n_organisms, ncol = n_organisms)
+  rownames(Fij) <- rownames(input_hist)
+  colnames(Fij) <- rownames(input_hist)
+  res <- matrix(0, nrow = n_organisms, ncol = n_organisms)
+  a <- log(1.1)
+  b <- log(0.1) - a
+  for (i in 1:(n_organisms-1)) {
+    for (j in (i + 1):n_organisms) {
+      denom <- max(seq_lengths[i], seq_lengths[j])
+      og_numerator <- apply(input_hist[c(i, j),], 2, min)
+      og_numerator[which(og_numerator == 0)] <- abs(seq_lengths[i] - seq_lengths[j])
+      Fij[i, j] <- sum(apply(input_hist[c(i, j),], 2, min) / denom)
+    }
+  }
+  Fij <- Fij + t(Fij)
+  res <- (log(0.1 + Fij) - a) / b
+  res[which(res < 0)] <- 0
+  diag(res) <- 0
+  return(res)
+}
+
 #=====================================================================
 # Function to implement coordinate signature method
 #=====================================================================
