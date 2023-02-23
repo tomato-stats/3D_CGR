@@ -90,6 +90,46 @@ hist_df_unpaired <- function(df, breaks){
   sapply(1:ncol(df), function(x) hist(df[,x], breaks[[x]], plot = F)$counts)
 }
 
+cutting_df <- function(df, breaks){
+  # df is a data frame with n columns 
+  # breaks is a data frame with n columns
+  output <- data.frame(matrix(ncol = 0, nrow = nrow(df)))
+  for(i in 1:ncol(df)){
+    output[[paste0("interval_", i)]] <- cut(df[,i], breaks[,i])
+  }
+  
+  output |> group_by(across(starts_with("interval_"))) |> 
+    summarise(n = n(), .groups = "drop")
+}
+
+hist_paired <- function(list_df, bin_count){
+  # Inputs are a list of features that have been column bound;
+  # Each element in a list is an organism
+  
+  # cut points  
+  cut_lb <- apply(sapply(list_df, function(x) apply(x, 2, min)), 1, min)
+  cut_ub <- apply(sapply(list_df, function(x) apply(x, 2, max)), 1, max)
+  cut_points <- 
+    sapply(
+      1:ncol(list_df[[1]]), 
+      function(i) seq(cut_lb[i], cut_ub[i], length = bin_count + 1)
+    ) 
+  
+  output <- 
+    lapply(
+      seq_along(list_df), 
+      function(x) cutting_df(list_df[[x]], breaks = cut_points)
+    )
+  
+  output <- 
+    Reduce(function(...) full_join(by = grep("interval_", colnames(output[[1]]), value = T), ...), output) |> 
+    mutate(across(where(is.numeric), replace_na, 0)) |> 
+    select(!starts_with("interval_")) |> as.matrix() |> t()
+  
+  rownames(output) <- names(list_df)
+  return(output)
+}
+
 #=====================================================================
 # Function to implement feature signature methods 
 # (applicable to angles and edges)
@@ -106,20 +146,109 @@ feature_histograms <- function(dna_features, bin_count){
   return(t(features_tabulation))
 }
 
-feature_signature <- function(dna_features, bin_count){
-  features_breaks <- seq(min(unlist(dna_features)), max(unlist(dna_features)), 
-                         length.out = bin_count + 1)
+coordinate_histograms <- function(cgr_coords, bin_count){
+  # Remove columns with constant data
+  cgr_coords <- lapply(cgr_coords, 
+                       function(x) preProcess(x, method = "zv") |>  predict(x))
   
+  # Remove row of zeros if there is one 
+  if(all(sapply(cgr_coords, function(x) all(x[1,]==0)))){
+    cgr_coords <- lapply(cgr_coords, function(x) x[-1,])
+  }
+  
+  # Get histogram bounds
+  hist_lb <- apply(do.call(rbind, cgr_coords), 2, min)
+  hist_ub <- apply(do.call(rbind, cgr_coords), 2, max)
+  
+  # Get histogram intervals for each axis
+  hist_breaks <- list()
+  for(i in seq_along(hist_lb)){
+    insert_me <- unique(seq(hist_lb[i], hist_ub[i], length.out = bin_count + 1))
+    if(length(insert_me) < 2) insert_me <- c(insert_me, insert_me + 1) 
+    hist_breaks[[i]] <- insert_me
+  }
   # Get histogram bin counts
-  features_tabulation <- sapply(dna_features, 
-                                function(x) hist(x, breaks = features_breaks, plot = F)$counts)
-
-  # Calculate z-scores within organisms 
-  features_tabulation <- 
-    preProcess(features_tabulation, method = c("center", "scale")) |>
-    predict(features_tabulation)
+  tabulations <- lapply(cgr_coords, 
+                        function(x) hist_df_unpaired(x, breaks = hist_breaks))
+  tabulations <- sapply(tabulations, unlist)
+  colnames(tabulations) <- names(cgr_coords)
   
-  return(t(features_tabulation))
+  return(t(tabulations))
+}
+
+
+
+
+
+
+# feature_signature <- function(dna_features, bin_count){
+#   features_breaks <- seq(min(unlist(dna_features)), max(unlist(dna_features)), 
+#                          length.out = bin_count + 1)
+#   
+#   # Get histogram bin counts
+#   features_tabulation <- sapply(dna_features, 
+#                                 function(x) hist(x, breaks = features_breaks, plot = F)$counts)
+# 
+#   # Calculate z-scores within organisms 
+#   features_tabulation <- 
+#     preProcess(features_tabulation, method = c("center", "scale")) |>
+#     predict(features_tabulation)
+#   
+#   return(t(features_tabulation))
+# }
+
+#=====================================================================
+# Function to calculate distances between histograms 
+#=====================================================================
+
+kdist <- function(input_hist) {
+  # Input is a histogram with each row associated with an organism 
+  # and and each column corresponds to a histogram bin
+  n_organisms <- nrow(input_hist)
+  seq_lengths <- rowSums(input_hist)
+  Fij <- matrix(0, nrow = n_organisms, ncol = n_organisms)
+  rownames(Fij) <- rownames(input_hist)
+  colnames(Fij) <- rownames(input_hist)
+  res <- matrix(0, nrow = n_organisms, ncol = n_organisms)
+  a <- log(1.1)
+  b <- log(0.1) - a
+  for (i in 1:(n_organisms-1)) {
+    for (j in (i + 1):n_organisms) {
+      if(i == j) browser()
+      denom <- min(seq_lengths[i], seq_lengths[j])
+      Fij[i, j] <- sum(apply(input_hist[c(i, j),], 2, min) / denom)
+    }
+  }
+  Fij <- Fij + t(Fij)
+  res <- (log(0.1 + Fij) - a) / b
+  res[which(res < 0)] <- 0
+  diag(res) <- 0
+  return(res)
+}
+
+
+kdist2 <- function(input_hist) {
+  # Input is a histogram with each row associated with an organism 
+  # and and each column corresponds to a histogram bin
+  n_organisms <- nrow(input_hist)
+  seq_lengths <- rowSums(input_hist)
+  Fij <- matrix(0, nrow = n_organisms, ncol = n_organisms)
+  rownames(Fij) <- rownames(input_hist)
+  colnames(Fij) <- rownames(input_hist)
+  res <- matrix(0, nrow = n_organisms, ncol = n_organisms)
+  for (i in 1:(n_organisms-1)) {
+    for (j in (i + 1):n_organisms) {
+      denom <- abs(seq_lengths[i]/ncol(input_hist)-seq_lengths[j]/ncol(input_hist))
+      Fij[i, j] <- sum(apply(input_hist[c(i, j),], 2, min) / max(denom,   min(seq_lengths)/ (2*ncol(input_hist))))
+    }
+  }
+  Fij <- Fij + t(Fij)
+  a <- max(Fij + .1) 
+  b <- log(0.1) - a
+  res <- (log(0.1 + Fij) - a) / b
+  res[which(res < 0)] <- 0
+  diag(res) <- 0
+  return(res)
 }
 
 #=====================================================================
