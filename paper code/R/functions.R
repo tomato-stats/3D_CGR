@@ -214,7 +214,6 @@ kdist <- function(input_hist) {
   b <- log(0.1) - a
   for (i in 1:(n_organisms-1)) {
     for (j in (i + 1):n_organisms) {
-      if(i == j) browser()
       denom <- min(seq_lengths[i], seq_lengths[j])
       Fij[i, j] <- sum(apply(input_hist[c(i, j),], 2, min) / denom)
     }

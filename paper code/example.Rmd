@@ -85,6 +85,21 @@ feature_histograms(sim_features, bin_count = 2*max(nchar(sim_fas))) |>
   kdist() |> as.dist() |> hclust(method = "complete") |>
   plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
 
+
+
+feature_signature(beta_features, bin_count = 2*max(nchar(beta_seq))) |> 
+  (\(x)(log(x + abs(min(x)) + 0.1) -log(1.1))/ (log(.1) - log(1.1)))() |> 
+   dist() |> hclust(method = "complete") |>
+    plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
+feature_signature(nadh_features, bin_count = 2*max(nchar(nadh))) |>
+  (\(x)(log(x + abs(min(x)) + 0.1) -log(1.1))/ (log(.1) - log(1.1)))() |> 
+    dist() |> as.dist() |> hclust(method = "complete") |>
+    plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
+feature_signature(sim_features, bin_count = 2*max(nchar(sim_fas))) |>
+  (\(x)(log(x + abs(min(x)) + 0.1) -log(1.1))/ (log(.1) - log(1.1)))() |> 
+    dist() |> as.dist() |> hclust(method = "complete") |>
+    plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
+
 temp <- philentropy::KL(feature_histograms(beta_features, bin_count = 2*max(nchar(beta_seq))) / rowSums(feature_histograms(beta_features, bin_count = 2*max(nchar(beta_seq))))) 
 rownames(temp) <- names(beta_seq) 
 colnames(temp)
