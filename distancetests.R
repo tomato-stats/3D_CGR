@@ -7,9 +7,12 @@ freq_to_prob <- function(input_hist){
   input_hist / rowSums(input_hist)
 }
 
-modify_dist <- function(){
-  
-  
+modify_dist <- function(input_hist, DISTFUNC){
+  for(i in 1:(nrow(input_hist)-1)){
+    for(j in (i + 1):nrow(input_hist)){
+      DISTFUNC(input_hist[i,,drop = F], input_hist[j,,drop = F])
+    }
+  }
 }
 
 
