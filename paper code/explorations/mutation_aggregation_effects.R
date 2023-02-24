@@ -64,7 +64,7 @@ clustal_output <-
   clustal_output |> 
   filter(Var1 == "Parent" & Var2 != "Parent") |> 
   mutate(`Mutation count` = as.numeric(gsub("(Substitutions|Deletions) = ", "", Var2)),
-         `Mutation percent` = `Mutation count`/nchar(parent_seq),
+         `Mutation percent` = `Mutation count`/nchar(parent_dna),
          `Mutation type` = gsub(" = [0-9]*", "", Var2)) 
 
 clustal_substitutions <- clustal_output |> filter(`Mutation type` == "Substitutions") 
@@ -177,12 +177,12 @@ full_join(sub_vol, del_vol,
 #=====================================================================
 
 # Function to combine deletion and substitution results 
-combine_sub_del <- function(bin_counts, sub_results, del_results, sig = ""){
+combine_sub_del <- function(bin_counts, sub_results, del_results, sig = "", DISTFUNC = dist){
   sub_del_comb <- data.frame()
   for(i in 1:length(sub_results)){
     i_count <- bin_counts[i]
     i_processed_substitutions <- 
-      sub_results[[i]] |> dist() |> as.matrix() |> as.data.frame() |> 
+      sub_results[[i]] |> DISTFUNC() |> as.matrix() |> as.data.frame() |> 
       rownames_to_column() |> 
       pivot_longer(cols = !contains("rowname"), values_to = "distance") |> 
       filter(rowname != name & grepl("= 0$", rowname)) |> 
@@ -191,7 +191,7 @@ combine_sub_del <- function(bin_counts, sub_results, del_results, sig = ""){
              bin_count = i_count) 
     
     i_processed_deletions <- 
-      del_results[[i]] |> dist() |> as.matrix() |> as.data.frame() |> 
+      del_results[[i]] |> DISTFUNC() |> as.matrix() |> as.data.frame() |> 
       rownames_to_column() |> 
       pivot_longer(cols = !contains("rowname"), values_to = "distance") |> 
       filter(rowname != name & grepl("= 0$", rowname)) |> 
