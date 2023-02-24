@@ -16,3 +16,4 @@ modify_dist <- function(){
 
 emdist:emd2d(freq_to_prob)
 philentrophy::KL
+test
