@@ -1,8 +1,6 @@
 #include <Rcpp.h>
 using namespace Rcpp;
 
-using Rcpp::log;
-
 // [[Rcpp::export]]
 NumericMatrix kmerdist(NumericMatrix input_hist) {
   // Input is a histogram with each row associated with an organism 
@@ -72,11 +70,11 @@ NumericMatrix kmerdist2(NumericMatrix input_hist) {
 }
 
 
-NumericMatrix tancoef(NumericVector x) {
+double tancoef(NumericVector x) {
   // Input is a vector of length 2
-  if(x(1) == 0 & x(2) == 0){
-    return(NA_REAL)
-  } else{
+  if((x(0) == 0) & (x(1) == 0)){
+    return(NA_REAL);
+  } else {
     return(min(x) / (sum(x) - min(x)));
   }
 }
@@ -88,6 +86,7 @@ NumericMatrix tandist(NumericMatrix input_hist) {
   int n_organisms = input_hist.nrow();
   int n_cols = input_hist.ncol(); 
   NumericVector seq_lengths(n_organisms);
+  NumericVector each_tc(n_cols);
   NumericMatrix TC(n_organisms, n_organisms);
   NumericMatrix dist(n_organisms, n_organisms);
   double a = log(1.1);
@@ -103,34 +102,20 @@ NumericMatrix tandist(NumericMatrix input_hist) {
         TC(i, j) = 0.5;
         dist(i, j) = 0.0;
       } else{
-        for(int k = 0; k < 
-        double denom = fmax(seq_lengths[i], seq_lengths[j]);
-        Fij(i, j) = sum(pmin(input_hist(i, _), input_hist(j, _)) / denom);
-        res(i, j) = (log(0.1 + Fij(i, j)) - a) / b;
-        if(res(i, j) < 0) res(i, j) = 0;
+        for(int k = 0; k < n_cols; ++k){
+          NumericVector x(2);
+          x[0] = input_hist(i, k);
+          x[1] = input_hist(j, k);
+          each_tc[k] = tancoef(x);
+          each_tc = each_tc[!is_na(each_tc)];
+          TC(i, j) += mean(each_tc); 
+        }
+        dist(i, j) = (log(0.1 + TC(i, j)) - a) / b;
+        if(dist(i, j) < 0) dist(i, j) = 0;
       }
     }
   }
-  
-  Fij += transpose(Fij);
-  res += transpose(res);
-  return res;
-}
-// [[Rcpp::export]]
-tc <- function(input_hist){
-  output <- matrix(0, ncol = nrow(input_hist), nrow = nrow(input_hist))
-  for(i in 1:(nrow(input_hist) - 1)){
-    for(j in (i+1) : nrow(input_hist)){
-      output[i, j] <- apply(input_hist[c(i, j),], 2, function(x) min(x)/ (sum(x) - min(x))) |> mean(na.rm = T)
-    }
-  }
-  output <- t(output) + output
-    rownames(output) <- rownames(input_hist)
-    colnames(output) <- rownames(input_hist)
-    a <- log(1.1)
-    b <- log(0.1) - a
-    res <- (log(0.1 + output) - a) / b
-    diag(res) <- 0
-  diag(output) <- 1
-  return(res)
+  TC += transpose(TC);
+  dist += transpose(dist);
+  return dist;
 }
