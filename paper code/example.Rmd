@@ -25,9 +25,7 @@ library(plotly)
 library(stringr)
 library(magrittr)
 library(tidyverse)
-library(ggplot2)
 library(caret)
-library(parallel)
 
 set.seed(0)
 ```
@@ -47,8 +45,14 @@ clustal_omega_tree <- function(dna_seq){
   msa(dna_seq, type = "dna", method = "ClustalOmega") |> 
     msaConvert(type = "seqinr::alignment") |> 
     dist.alignment(gap = T) |> 
-    as.matrix() |> as.dist() |> 
     hclust(method = "complete") |>
+    plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
+}
+
+clustal_omega_tree <- function(dna_seq){
+  msa(dna_seq, type = "dna", method = "ClustalOmega") |> 
+    msaConvert(type = "ape::DNAbin") |> ape::dist.gene() |> sqrt() |> 
+    hclust() |> 
     plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
 }
 
@@ -74,6 +78,9 @@ sim_cg <- lapply(sim_fas, seq_to_hypercomplex_cg4)
 beta_features <- lapply(beta_cg, by3rowangle)
 nadh_features <- lapply(nadh_cg, by3rowangle)
 sim_features <- lapply(sim_cg, by3rowangle)
+
+feature_histograms(beta_features, bin_count = 2*max(nchar(beta_seq))) |> 
+  vegan::vegdist(method = "robust.aitchison") |> hclust() |> plot()
 
 feature_histograms(beta_features, bin_count = 2*max(nchar(beta_seq))) |>
   kdist() |> as.dist() |> hclust(method = "complete") |>
