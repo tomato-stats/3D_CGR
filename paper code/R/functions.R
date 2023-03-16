@@ -102,7 +102,7 @@ cutting_df <- function(df, breaks){
     summarise(n = n(), .groups = "drop")
 }
 
-hist_paired <- function(list_df, bin_count){
+hist_paired <- function(list_df, bin_count, return_bins = F){
   # Inputs are a list of features that have been column bound;
   # Each element in a list is an organism
   
@@ -121,13 +121,16 @@ hist_paired <- function(list_df, bin_count){
       function(x) cutting_df(list_df[[x]], breaks = cut_points)
     )
   
+  cut_point_centers <- apply(cut_points, 2, zoo::rollmean, k = 2) |> as_tibble() |> rename_with(.f = partial(gsub, pattern = "V", replacement = "interval_")) 
   output <- 
     Reduce(function(...) full_join(by = grep("interval_", colnames(output[[1]]), value = T), ...), output) |> 
     mutate(across(where(is.numeric), replace_na, 0)) |> 
-    select(!starts_with("interval_")) |> as.matrix() |> t()
+    mutate(across(contains("interval_"), .fns = function(x) cut_point_centers[[cur_column()]][x]))
   
-  rownames(output) <- names(list_df)
-  return(output)
+  counts <- output |> select(!starts_with("interval_")) |> as.matrix() |> t()
+  rownames(counts) <- names(list_df)
+  if(!return_bins) return(counts)
+  else return(list(counts, output |> select(starts_with("interval"))))
 }
 
 #=====================================================================
@@ -142,11 +145,15 @@ feature_histograms <- function(dna_features, bin_count){
   # Get histogram bin counts
   features_tabulation <- sapply(dna_features, 
                                 function(x) hist(x, breaks = features_breaks, plot = F)$counts)
+
+  # Remove bins where it's zero across all organisms 
+  tabulations.rowSums <- rowSums(features_tabulation)
+  features_tabulation <- features_tabulation[which(tabulations.rowSums != 0),]
   
   return(t(features_tabulation))
 }
 
-coordinate_histograms <- function(cgr_coords, bin_count){
+coordinate_histograms <- function(cgr_coords, bin_count, return_bins = F){
   # Remove columns with constant data
   cgr_coords <- lapply(cgr_coords, 
                        function(x) preProcess(x, method = "zv") |>  predict(x))
@@ -173,7 +180,12 @@ coordinate_histograms <- function(cgr_coords, bin_count){
   tabulations <- sapply(tabulations, unlist)
   colnames(tabulations) <- names(cgr_coords)
   
-  return(t(tabulations))
+  # Remove bins where it's zero across all organisms 
+  tabulations.rowSums <- rowSums(tabulations)
+  tabulations[which(tabulations.rowSums != 0),]
+  
+  if(!return_bins)  return(t(tabulations)) 
+  else return(list(t(tabulations), sapply(hist_breaks, partial(.f = zoo::rollmean, k = 2)) ))
 }
 
 
@@ -181,21 +193,21 @@ coordinate_histograms <- function(cgr_coords, bin_count){
 
 
 
-# feature_signature <- function(dna_features, bin_count){
-#   features_breaks <- seq(min(unlist(dna_features)), max(unlist(dna_features)), 
-#                          length.out = bin_count + 1)
-#   
-#   # Get histogram bin counts
-#   features_tabulation <- sapply(dna_features, 
-#                                 function(x) hist(x, breaks = features_breaks, plot = F)$counts)
-# 
-#   # Calculate z-scores within organisms 
-#   features_tabulation <- 
-#     preProcess(features_tabulation, method = c("center", "scale")) |>
-#     predict(features_tabulation)
-#   
-#   return(t(features_tabulation))
-# }
+feature_signature <- function(dna_features, bin_count){
+  features_breaks <- seq(min(unlist(dna_features)), max(unlist(dna_features)),
+                         length.out = bin_count + 1)
+
+  # Get histogram bin counts
+  features_tabulation <- sapply(dna_features,
+                                function(x) hist(x, breaks = features_breaks, plot = F)$counts)
+
+  # Calculate z-scores within organisms
+  features_tabulation <-
+    preProcess(features_tabulation, method = c("center", "scale")) |>
+    predict(features_tabulation)
+
+  return(t(features_tabulation))
+}
 
 #=====================================================================
 # Function to calculate distances between histograms 
@@ -221,6 +233,7 @@ kdist <- function(input_hist) {
   Fij <- Fij + t(Fij)
   res <- (log(0.1 + Fij) - a) / b
   res[which(res < 0)] <- 0
+  diag(Fij) <- 1
   diag(res) <- 0
   return(res)
 }
