@@ -84,3 +84,36 @@ my_wasserstein <- function (a, b, p = 1, tplan = NULL, costm = NULL, prob = TRUE
   return(res)
 }
 
+all_wasserstein <- function(){
+  temp <- beta_cg |> hist_paired(bin_count = 1000, return_bins = T) 
+  all_lengths <- temp[[1]] |> rowSums() 
+  max_length <- max(all_lengths)
+  
+  distances <- matrix(0, ncol = length(all_lengths), nrow = length(all_lengths))
+  for(i in 1:(length(all_lengths)-1)){
+    for(j in (i + 1):length(all_lengths)){
+      first  <- wpp(coordinates = rbind(temp[[2]], 0), mass = c(temp[[1]][i,], max_length - all_lengths[i]))
+      second <- wpp(coordinates = rbind(temp[[2]], 0), mass = c(temp[[1]][j,], max_length - all_lengths[j]))
+      distances[i, j] <- my_wasserstein(first, second, all_eqdist = F)
+    }
+  }
+  distances <- t(distances) + distances
+  rownames(distances) <- names(beta_seq)
+}
+
+
+
+temp <- beta_cg
+all_lengths <- sapply(temp, nrow) - 1
+max_length <- max(all_lengths)
+
+distances <- matrix(0, ncol = length(all_lengths), nrow = length(all_lengths))
+for(i in 1:(length(all_lengths)-1)){
+  for(j in (i + 1):length(all_lengths)){
+    first  <- wpp(coordinates = temp[[i]], mass = c(max_length - all_lengths[i], rep(1, all_lengths[i])) )
+    second <- wpp(coordinates = temp[[j]], mass = c(max_length - all_lengths[j], rep(1, all_lengths[j])) )
+    distances[i, j] <- my_wasserstein(first, second, all_eqdist = F)
+  }
+}
+distances <- t(distances) + distances
+rownames(distances) <- names(beta_seq)
