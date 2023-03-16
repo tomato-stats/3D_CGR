@@ -9,7 +9,7 @@ first <- wpp(coordinates = temp[[2]], mass = temp[[1]][1,])
 second <- wpp(coordinates = temp[[2]], mass = temp[[1]][4,])
 my_wasserstein(first, second)
 
-my_wasserstein <- function (a, b, p = 1, tplan = NULL, costm = NULL, prob = TRUE, all_eqdist = F, ...) 
+my_wasserstein <- function (a, b, p = 1, tplan = NULL, costm = NULL, prob = TRUE, all_eqdist = F, normalize = F, ...) 
 {
   default <- FALSE
   if (is.null(tplan)) {
@@ -67,8 +67,15 @@ my_wasserstein <- function (a, b, p = 1, tplan = NULL, costm = NULL, prob = TRUE
     }
     dd <- apply(orig - dest, 1, wpsum, pp = 2)
   }
-  if(all_eqdist) dd <- rep(1, length(dd))
-  
+  if(all_eqdist) dd[which(dd !=0)] <- .1#dd <- rep(1, length(dd))
+  # Make each deletion the average substitution mutation cost 
+  else{ 
+    dd[which(tplan$from == 1)] <- .1#coalesce(mean(dd[intersect(which(tplan$from != 1), which(dd!=0))]), .2)
+    if(length(intersect(which(tplan$from != 1), which(dd!=0))) > 0)
+      dd[intersect(which(tplan$from != 1), which(dd!=0))] <- median(dd[intersect(which(tplan$from != 1), which(dd!=0))])
+  }
+  #print(mean(dd[intersect(which(tplan$from != 1), which(dd!=0))]))
+  #print(median(dd[intersect(which(tplan$from != 1), which(dd!=0))]))
   res <- wpsum(dd, tplan$mass, p)
   if (prob) {
     if (default) {
@@ -80,6 +87,11 @@ my_wasserstein <- function (a, b, p = 1, tplan = NULL, costm = NULL, prob = TRUE
     else {
       res <- res/(a$N^(1/p))
     }
+  }
+  if(normalize){
+    a <- log(1.1)
+    b <- log(0.1) - a
+    res <- (log(0.1 + (1-res)) - a) / (b);
   }
   return(res)
 }
@@ -94,7 +106,7 @@ all_wasserstein <- function(){
     for(j in (i + 1):length(all_lengths)){
       first  <- wpp(coordinates = rbind(temp[[2]], 0), mass = c(temp[[1]][i,], max_length - all_lengths[i]))
       second <- wpp(coordinates = rbind(temp[[2]], 0), mass = c(temp[[1]][j,], max_length - all_lengths[j]))
-      distances[i, j] <- my_wasserstein(first, second, all_eqdist = F)
+      distances[i, j] <- my_wasserstein(first, second, all_eqdist = F, prob = F)
     }
   }
   distances <- t(distances) + distances
@@ -103,7 +115,7 @@ all_wasserstein <- function(){
 
 
 
-temp <- beta_cg
+temp <- nadh_cg
 all_lengths <- sapply(temp, nrow) - 1
 max_length <- max(all_lengths)
 
@@ -112,8 +124,8 @@ for(i in 1:(length(all_lengths)-1)){
   for(j in (i + 1):length(all_lengths)){
     first  <- wpp(coordinates = temp[[i]], mass = c(max_length - all_lengths[i], rep(1, all_lengths[i])) )
     second <- wpp(coordinates = temp[[j]], mass = c(max_length - all_lengths[j], rep(1, all_lengths[j])) )
-    distances[i, j] <- my_wasserstein(first, second, all_eqdist = F)
+    distances[i, j] <- my_wasserstein(first, second, all_eqdist = F, normalize = T)
   }
 }
 distances <- t(distances) + distances
-rownames(distances) <- names(beta_seq)
+rownames(distances) <- names(nadh)
