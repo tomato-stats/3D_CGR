@@ -95,7 +95,7 @@ cutting_df <- function(df, breaks){
   # breaks is a data frame with n columns
   output <- data.frame(matrix(ncol = 0, nrow = nrow(df)))
   for(i in 1:ncol(df)){
-    output[[paste0("interval_", i)]] <- cut(df[,i], breaks[,i])
+    output[[paste0("interval_", i)]] <- cut(df[,i], breaks[,i], include.lowest = T)
   }
   
   output |> group_by(across(starts_with("interval_"))) |> 
