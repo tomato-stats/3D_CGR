@@ -113,6 +113,27 @@ all_wasserstein <- function(){
   rownames(distances) <- names(beta_seq)
 }
 
+all_wasserstein_cg <- function(list_coords){
+  # Each coordinate gets count = 1
+  all_lengths <- sapply(list_coords, nrow)
+  max_length <- max(all_lengths)
+  
+  distances <- matrix(0, ncol = length(all_lengths), nrow = length(all_lengths))
+  for(i in 1:(length(all_lengths)-1)){
+    for(j in (i + 1):length(all_lengths)){
+      first  <- wpp(coordinates = rbind(list_coords[[i]], 0), mass = c(rep(1, nrow(list_coords[[i]])), max_length - all_lengths[i]))
+      second <- wpp(coordinates = rbind(list_coords[[j]], 0), mass = c(rep(1, nrow(list_coords[[j]])), max_length - all_lengths[j]))
+      distances[i, j] <- my_wasserstein(first, second, all_eqdist = F, prob = F)
+    }
+  }
+  distances <- t(distances) + distances
+  rownames(distances) <- names(list_coords)
+  return(distances)
+}
+
+
+
+
 
 
 temp <- nadh_cg

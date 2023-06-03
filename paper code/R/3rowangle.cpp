@@ -21,6 +21,7 @@ double angle(NumericVector a, NumericVector b) {
 NumericVector sliding_window_angles(NumericMatrix points) {
   int n = points.nrow();
   NumericVector angles(n - 2);
+  double dot_prod;
   
   for (int i = 0; i < n - 2; ++i) {
     NumericVector p1 = points.row(i);
@@ -29,6 +30,7 @@ NumericVector sliding_window_angles(NumericMatrix points) {
     
     NumericVector a = p2 - p1;
     NumericVector b = p3 - p2;
+    dot_prod = dot_product(a, b);
     angles[i] = angle(a, b);
   }
   

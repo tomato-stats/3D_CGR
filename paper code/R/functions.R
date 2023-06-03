@@ -80,7 +80,7 @@ distance_from_vertices <- function(points, CGR_coord = coord1){
   if(!is.matrix(points)) points <- as.matrix(points)
   if(all(points[1,] == 0)) points <- points[-1,]
   if(all(points[,1] == 0)) points <- points[,-1]
-  distance_matrix(points, as.matrix(coord1[1:4,1:3]))
+  distance_matrix(points, as.matrix(CGR_coord[1:4,1:3]))
 }
 
 ## Functions related to coordinate signature 
@@ -138,22 +138,27 @@ hist_paired <- function(list_df, bin_count, return_bins = F){
 # (applicable to angles and edges)
 #=====================================================================
 
-feature_histograms <- function(dna_features, bin_count){
+feature_histograms <- function(dna_features, bin_count, return_bins = F, drop_empty = F){
   features_breaks <- seq(min(unlist(dna_features)), max(unlist(dna_features)), 
                          length.out = bin_count + 1)
   
   # Get histogram bin counts
   features_tabulation <- sapply(dna_features, 
                                 function(x) hist(x, breaks = features_breaks, plot = F)$counts)
-
-  # Remove bins where it's zero across all organisms 
-  tabulations.rowSums <- rowSums(features_tabulation)
-  features_tabulation <- features_tabulation[which(tabulations.rowSums != 0),]
+  bin_centers <- zoo::rollmean(features_breaks, k = 2)
   
-  return(t(features_tabulation))
+  # Remove bins where it's zero across all organisms 
+  if(drop_empty){
+    tabulations.rowSums <- rowSums(features_tabulation)
+    features_tabulation <- features_tabulation[which(tabulations.rowSums != 0),,drop = F]
+    bin_centers <- bin_centers[which(tabulations.rowSums != 0)]
+  }
+  
+  if(!return_bins)  return(t(features_tabulation)) 
+  else return(list(t(features_tabulation), bin_centers))
 }
 
-coordinate_histograms <- function(cgr_coords, bin_count, return_bins = F){
+coordinate_histograms <- function(cgr_coords, bin_count, return_bins = F, drop_empty = F){
   # Remove columns with constant data
   cgr_coords <- lapply(cgr_coords, 
                        function(x) preProcess(x, method = "zv") |>  predict(x))
@@ -174,6 +179,8 @@ coordinate_histograms <- function(cgr_coords, bin_count, return_bins = F){
     if(length(insert_me) < 2) insert_me <- c(insert_me, insert_me + 1) 
     hist_breaks[[i]] <- insert_me
   }
+  bin_centers <- sapply(hist_breaks, partial(.f = zoo::rollmean, k = 2))
+  
   # Get histogram bin counts
   tabulations <- lapply(cgr_coords, 
                         function(x) hist_df_unpaired(x, breaks = hist_breaks))
@@ -181,11 +188,14 @@ coordinate_histograms <- function(cgr_coords, bin_count, return_bins = F){
   colnames(tabulations) <- names(cgr_coords)
   
   # Remove bins where it's zero across all organisms 
-  tabulations.rowSums <- rowSums(tabulations)
-  tabulations[which(tabulations.rowSums != 0),]
+  if(drop_empty){
+    tabulations.rowSums <- rowSums(tabulations)
+    tabulations <- tabulations[which(tabulations.rowSums != 0),, drop = F]
+    bin_centers <- bin_centers[which(tabulations.rowSums != 0),, drop = F]
+  }
   
   if(!return_bins)  return(t(tabulations)) 
-  else return(list(t(tabulations), sapply(hist_breaks, partial(.f = zoo::rollmean, k = 2)) ))
+  else return(list(t(tabulations), bin_centers))
 }
 
 
