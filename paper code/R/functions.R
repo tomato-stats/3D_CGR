@@ -138,25 +138,64 @@ hist_paired <- function(list_df, bin_count, return_bins = F){
 # (applicable to angles and edges)
 #=====================================================================
 
-feature_histograms <- function(dna_features, bin_count, return_bins = F, drop_empty = F){
-  features_breaks <- seq(min(unlist(dna_features)), max(unlist(dna_features)), 
-                         length.out = bin_count + 1)
-  
+feature_histograms <- function(dna_features, bin_count, return_bins = F, return_bin_centers = F, drop_empty = F){
+  if(max(unlist(dna_features)) == pi & min(unlist(dna_features)) == -pi){
+    # histograms for angles
+    remove_pi <- function(x){
+      new_x <- x[which(abs(pi - x) > 3e-08)]
+      new_x <- new_x[which(abs(-pi - new_x) > 3e-08)]
+      return(new_x)
+    }
+    non_pi_features <- remove_pi(unlist(dna_features))
+    features_breaks <- seq(min(non_pi_features), max(non_pi_features),
+                           length.out = bin_count - 1)
+    features_breaks <- c(-pi, features_breaks, pi)
+  } else {
+    features_breaks <- seq(min(unlist(dna_features)), max(unlist(dna_features)),
+                           length.out = bin_count + 1)
+  }
   # Get histogram bin counts
-  features_tabulation <- sapply(dna_features, 
-                                function(x) hist(x, breaks = features_breaks, plot = F)$counts)
+  features_tabulation <-
+    sapply(
+      dna_features,
+      function(x) hist(x, breaks = features_breaks, plot = F)$counts
+    )
   bin_centers <- zoo::rollmean(features_breaks, k = 2)
   
-  # Remove bins where it's zero across all organisms 
+  # Remove bins where it's zero across all organisms
   if(drop_empty){
     tabulations.rowSums <- rowSums(features_tabulation)
     features_tabulation <- features_tabulation[which(tabulations.rowSums != 0),,drop = F]
     bin_centers <- bin_centers[which(tabulations.rowSums != 0)]
   }
-  
-  if(!return_bins)  return(t(features_tabulation)) 
-  else return(list(t(features_tabulation), bin_centers))
+
+  output <- t(features_tabulation)
+  if(return_bins) output <- list(output, features_breaks)
+  if(return_bin_centers) output <- list(output, bin_centers)
+  return(output)
 }
+
+# feature_histograms <- function(dna_features, bin_count, return_bins = F, drop_empty = F){
+#   features_breaks <- seq(min(unlist(dna_features)), max(unlist(dna_features)),
+#                          length.out = bin_count + 1)
+# 
+#   # Get histogram bin counts
+#   features_tabulation <-
+#     sapply(dna_features,
+#            function(x) hist(x, breaks = features_breaks, plot = F)$counts
+#     )
+#   bin_centers <- zoo::rollmean(features_breaks, k = 2)
+# 
+#   # Remove bins where it's zero across all organisms
+#   if(drop_empty){
+#     tabulations.rowSums <- rowSums(features_tabulation)
+#     features_tabulation <- features_tabulation[which(tabulations.rowSums != 0),,drop = F]
+#     bin_centers <- bin_centers[which(tabulations.rowSums != 0)]
+#   }
+# 
+#   if(!return_bins)  return(t(features_tabulation))
+#   else return(list(t(features_tabulation), bin_centers))
+# }
 
 coordinate_histograms <- function(cgr_coords, bin_count, return_bins = F, drop_empty = F){
   # Remove columns with constant data

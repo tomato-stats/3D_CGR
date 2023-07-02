@@ -1,30 +1,15 @@
-#include <Rcpp.h>
+
 #include <cmath>
+#include <RcppArmadillo.h>
 using namespace Rcpp;
 
 
-// Calculates the cross product of two vectors 
-NumericVector cross_product(NumericVector a, NumericVector b) {
-  NumericVector cross(3);
-  cross[0] = a[1]*b[2] - a[2]*b[1];
-  cross[1] = a[2]*b[0] - a[0]*b[2];
-  cross[2] = a[0]*b[1] - a[1]*b[0];
-  return cross;
-}
+// [[Rcpp::depends(RcppArmadillo)]]
 
-// Calculates the dot product of two vectors
-double dot_product(NumericVector a, NumericVector b) {
-  return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-}
-
-// Calculates the magnitude of a vector
-double magnitude(NumericVector a) {
-  return sqrt(dot_product(a, a));
-}
-
+// [[Rcpp::export]]
 // Calculates the angle between two vectors
-double angle(NumericVector a, NumericVector b) {
-  double x = (dot_product(a, b) / (magnitude(a) * magnitude(b)));
+double angle(arma::rowvec a, arma::rowvec b) {
+  double x = (arma::dot(a, b) / (arma::norm(a) * arma::norm(b)));
   if(x > 1){
     x = 1.0;
   } else if(x < -1){
@@ -33,70 +18,74 @@ double angle(NumericVector a, NumericVector b) {
   return acos(x);
 }
 
+// [[Rcpp::export]]
 // Calculates the oriented angle between two vectors
-double oriented_angle(NumericVector a, NumericVector b, NumericVector n) {
-  double x =  (dot_product(a, b) / (magnitude(a) * magnitude(b)));
+double oriented_angle(arma::rowvec  a, arma::rowvec  b, arma::rowvec  n) {
+  double x =  (arma::dot(a, b) / (arma::norm(a) * arma::norm(b)));
   if(x > 1){
     x = 1.0;
   } else if(x < -1){
     x = -1.0;
   }
   double theta = std::acos(x);
-  double sign = dot_product(n, cross_product(a, b)) < 0 ? -1.0 : 1.0;
+  double sign = arma::dot(n, arma::cross(a, b)) < 0 ? -1.0 : 1.0;
   return sign * theta;
 }
 
-double oriented_distance(NumericVector a, NumericVector b, NumericVector n) {
-  NumericVector ba = b - a;
-  NumericVector normalized_n = n / magnitude(n);  
-  return dot_product(ba, normalized_n);
-}
-
-// Function to calculate Euclidean distance between two vectors
-double euclidean_distance(NumericVector x, NumericVector y) {
-  double dist = 0;
-  for(int i = 0; i < x.length(); i++) {
-    dist += pow(x[i] - y[i], 2);
-  }
-  return sqrt(dist);
+// [[Rcpp::export]]
+double oriented_distance(arma::rowvec a, arma::rowvec b, arma::rowvec n) {
+  double dist = sqrt(sum(pow(b - a, 2.0)));
+  double sign = arma::dot(b-a, n) < 0 ? -1.0 : 1.0;
+  return sign * dist; 
 }
 
 // [[Rcpp::export]]
-NumericVector by3rowangle(NumericMatrix points) {
-  int n = points.nrow();
+NumericVector by3rowangle(arma::mat points) {
+  int n = points.n_rows;
   NumericVector angles(n - 2);
-  // double dot_prod;
   
   for (int i = 0; i < n - 2; ++i) {
-    NumericVector p1 = points.row(i);
-    NumericVector p2 = points.row(i + 1);
-    NumericVector p3 = points.row(i + 2);
+    arma::rowvec p1 = points.row(i);
+    arma::rowvec p2 = points.row(i + 1);
+    arma::rowvec p3 = points.row(i + 2);
     
-    NumericVector a = p1 - p2;
-    NumericVector b = p3 - p2;
-    // dot_prod = dot_product(a, b);
+    arma::rowvec a = p1 - p2;
+    arma::rowvec b = p3 - p2;
     angles[i] = angle(a, b);
-    // if(Rcpp::NumericVector::is_na(dot_prod)) angles[i] = angle(a, b) ;
-    // else if(dot_prod < 0) angles[i] = angle(a, b) * -1;
   }
   
   return angles;
 }
 
 // [[Rcpp::export]]
-NumericVector by3roworientedangle(NumericMatrix points, NumericVector v = NumericVector::create(1.0, 0.0, 0.0)) {
+NumericVector by3rowdistance(NumericMatrix points) {
   int n = points.nrow();
+  NumericVector distances(n - 2);
+  int k = 0;
+  
+  for(int i = 0; i < n-2; ++i) {
+    NumericVector point1 = points(i, _); // get coordinates of point1
+    NumericVector point3 = points(i+2, _); // get coordinates of point3
+    
+    double dist = sqrt(sum(pow(point1 - point3, 2.0))); // calculate Euclidean distance
+    distances[k++] = dist; // store distance in vector
+  }
+  return distances;
+}
+
+// [[Rcpp::export]]
+NumericVector by3roworientedangle1(arma::mat points) {
+  int n = points.n_rows;
   NumericVector angles(n - 2);
-  // double dot_prod;
   
   for (int i = 0; i < n - 2; ++i) {
-    NumericVector p1 = points.row(i);
-    NumericVector p2 = points.row(i + 1);
-    NumericVector p3 = points.row(i + 2);
+    arma::rowvec p1 = points.row(i);
+    arma::rowvec p2 = points.row(i + 1);
+    arma::rowvec p3 = points.row(i + 2);
     
-    NumericVector a = p1 - p2;
-    NumericVector b = p3 - p2;
-    //angles[i] = oriented_angle(a, b, cross_product(a, b));
+    arma::rowvec a = p1 - p2;
+    arma::rowvec b = p3 - p2;
+    //angles[i] = oriented_angle(a, b, arma::cross(a, b));
     angles[i] = oriented_angle(a, b, p2);
   }
   
@@ -104,10 +93,43 @@ NumericVector by3roworientedangle(NumericMatrix points, NumericVector v = Numeri
 }
 
 // [[Rcpp::export]]
-NumericVector by3roworienteddistance(NumericMatrix points, NumericVector v = NumericVector::create(1.0, 0.0, 0.0)) {
+NumericVector by3roworientedangle2(arma::mat points, arma::rowvec v) {
+  int n = points.n_rows;
+  NumericVector angles(n - 2);
+  
+  for (int i = 0; i < n - 2; ++i) {
+    arma::rowvec p1 = points.row(i);
+    arma::rowvec p2 = points.row(i + 1);
+    arma::rowvec p3 = points.row(i + 2);
+    
+    arma::rowvec a = p1 - p2;
+    arma::rowvec b = p3 - p2;
+    angles[i] = oriented_angle(a, b, v);
+  }
+  
+  return angles;
+}
+
+// [[Rcpp::export]]
+NumericVector by3roworientedangle3(arma::mat points) {
+  int n = points.n_rows;
+  NumericVector angles(n - 2);
+  
+  for (int i = 0; i < n - 2; ++i) {
+    arma::rowvec p1 = points.row(i);
+    arma::rowvec p2 = points.row(i + 1);
+    arma::rowvec p3 = points.row(i + 2);
+
+    angles[i] = oriented_angle(p1, p3, p2);
+  }
+  
+  return angles;
+}
+
+// [[Rcpp::export]]
+NumericVector by3roworienteddistance1(NumericMatrix points) {
   int n = points.nrow();
   NumericVector distances(n - 2);
-  // double dot_prod;
   
   for (int i = 0; i < n - 2; ++i) {
     NumericVector p1 = points.row(i);
@@ -116,11 +138,44 @@ NumericVector by3roworienteddistance(NumericMatrix points, NumericVector v = Num
     
     NumericVector a = p1 - p2;
     NumericVector b = p3 - p2;
-    distances[i] = oriented_distance(a, b, v);
+    distances[i] = oriented_distance(a, b, p2);
   }
   
   return distances;
 }
+
+// [[Rcpp::export]]
+NumericVector by3roworienteddistance2(NumericMatrix points, NumericVector v = NumericVector::create(1.0, 0.0, 0.0)) {
+  int n = points.nrow();
+  NumericVector distances(n - 2);
+  
+  for (int i = 0; i < n - 2; ++i) {
+    NumericVector p1 = points.row(i);
+    NumericVector p3 = points.row(i + 2);
+
+    distances[i] = oriented_distance(p1, p3, v);
+  }
+  
+  return distances;
+}
+
+
+// [[Rcpp::export]]
+NumericVector by3roworienteddistance3(NumericMatrix points) {
+  int n = points.nrow();
+  NumericVector angles(n - 2);
+  
+  for (int i = 0; i < n - 2; ++i) {
+    NumericVector p1 = points.row(i);
+    NumericVector p2 = points.row(i + 1);
+    NumericVector p3 = points.row(i + 2);
+    
+    angles[i] = oriented_distance(p1, p3, p2);
+  }
+  
+  return angles;
+}
+
 
 // [[Rcpp::export]]
 NumericVector orienteddistance(NumericMatrix points) {
@@ -129,13 +184,28 @@ NumericVector orienteddistance(NumericMatrix points) {
   // double dot_prod;
   
   for (int i = 1; i < n - 1; ++i) {
-    NumericVector p1 = points.row(i);
-    NumericVector p2 = points.row(i + 1);
+    arma::rowvec p1 = points.row(i);
+    arma::rowvec p2 = points.row(i + 1);
 
-    distances[i] = oriented_distance(p1, p2, cross_product(p1, p2));
+    distances[i] = oriented_distance(p1, p2, arma::cross(p1, p2));
   }
   
   return distances;
+}
+
+// [[Rcpp::export]]
+NumericVector by2rowdotprod(NumericMatrix points) {
+  int n = points.nrow();
+  NumericVector dotprod(n - 1);
+  
+  for (int i = 0; i < n - 1; ++i) {
+    arma::rowvec p1 = points.row(i);
+    arma::rowvec p2 = points.row(i + 1);
+
+    dotprod[i] = arma::dot(p1, p2);
+  }
+  
+  return dotprod;
 }
 
 // [[Rcpp::export]]
@@ -144,59 +214,34 @@ NumericVector by3rowdotprod(NumericMatrix points) {
   NumericVector dotprod(n - 2);
   
   for (int i = 0; i < n - 2; ++i) {
-    NumericVector p1 = points.row(i);
-    NumericVector p2 = points.row(i + 1);
-    NumericVector p3 = points.row(i + 2);
+    arma::rowvec p1 = points.row(i);
+    arma::rowvec p2 = points.row(i + 1);
+    arma::rowvec p3 = points.row(i + 2);
     
-    NumericVector a = p1 - p2;
-    NumericVector b = p3 - p2;
-    dotprod[i] = dot_product(a, b);
+    arma::rowvec a = p2 - p1;
+    arma::rowvec b = p3 - p2;
+    dotprod[i] = arma::dot(a, b);
   }
   
   return dotprod;
 }
 
-// [[Rcpp::export]]
-NumericVector by3rowdistance(NumericMatrix points) {
-  int n = points.nrow();
-  int m = points.ncol(); 
-  NumericVector distances(n - 2);
-  int k = 0;
-  int j; 
-  
-  if(m == 3){
-    for (int i = 0; i < n - 3; ++i) {
-      j = i + 2;
-      double di = points(i, 0) - points(j, 0);
-      double dj = points(i, 1) - points(j, 1);
-      double dk = points(i, 2) - points(j, 2);
-      distances[k++] = sqrt(di * di + dj * dj + dk * dk);
-    } 
-  } else if(m == 4) {
-    for (int i = 0; i < n - 3; ++i) {
-      j = i + 2;      
-      double dr = points(i, 0) - points(j, 0);
-      double di = points(i, 0) - points(j, 0);
-      double dj = points(i, 1) - points(j, 1);
-      double dk = points(i, 2) - points(j, 2);
-      distances[k++] = sqrt(dr * dr + di * di + dj * dj + dk * dk);
-    }
-  } else{
-    for (int i = 0; i < n - 3; ++i) {
-      j = i + 2;
-      double dist = 0;
-      for (int p = 0; p < m; ++p) {
-        double d = points(i, p) - points(j, p);
-        dist += d * d;
-      }
-      distances[k++] = sqrt(dist);
-    }
-  }
-return distances;
-}
 
 // [[Rcpp::export]]
 NumericVector distances_from_origin(NumericMatrix points) {
+  int n = points.nrow();
+  NumericVector distances(n);
+  int k = 0;
+  
+  for (int i = 0; i < n; ++i) {
+    double dist = sqrt(sum(pow(points(i, _), 2.0)));
+    distances[k++] = dist;
+  }
+  return distances;
+}
+
+// [[Rcpp::export]]
+NumericVector distances_from_point(NumericMatrix points,  NumericVector v = NumericVector::create(1.0, 0.0, 0.0, 0.0)) {
   int n = points.nrow();
   int m = points.ncol(); 
   NumericVector distances(n);
@@ -204,24 +249,24 @@ NumericVector distances_from_origin(NumericMatrix points) {
   
   if(m == 3){
     for (int i = 0; i < n; ++i) {
-      double di = points(i, 0);
-      double dj = points(i, 1);
-      double dk = points(i, 2);
+      double di = points(i, 0) - v[0];
+      double dj = points(i, 1) - v[1];
+      double dk = points(i, 2) - v[2];
       distances[k++] = sqrt(di * di + dj * dj + dk * dk);
     } 
   } else if(m == 4) {
     for (int i = 0; i < n; ++i) {
-      double dr = points(i, 0);
-      double di = points(i, 0);
-      double dj = points(i, 1);
-      double dk = points(i, 2);
+      double dr = points(i, 0) - v[0];
+      double di = points(i, 1) - v[1];
+      double dj = points(i, 2) - v[2];
+      double dk = points(i, 3) - v[3];
       distances[k++] = sqrt(dr * dr + di * di + dj * dj + dk * dk);
     }
   } else{
     for (int i = 0; i < n; ++i) {
       double dist = 0;
       for (int p = 0; p < m; ++p) {
-        double d = points(i, p);
+        double d = points(i, p) - v[p];
         dist += d * d;
       }
       distances[k++] = sqrt(dist);
@@ -249,9 +294,6 @@ NumericMatrix xy_from_3rowangle(NumericMatrix points){
   return output;
 }
 
-
-
-
 // [[Rcpp::export]]
 NumericVector by3rowscalartripleproduct(NumericMatrix points) {
   int n = points.nrow();
@@ -259,169 +301,179 @@ NumericVector by3rowscalartripleproduct(NumericMatrix points) {
   NumericVector dotprod(n - 2);
   NumericVector c(veclen, 0.0);
   
-  c[0] = 1;
   for (int i = 0; i < n - 2; ++i) {
-    NumericVector p1 = points.row(i);
-    NumericVector p2 = points.row(i + 1);
-    NumericVector p3 = points.row(i + 2);
+    arma::rowvec p1 = points.row(i);
+    arma::rowvec p2 = points.row(i + 1);
+    arma::rowvec p3 = points.row(i + 2);
     
-    NumericVector a = p1 - p2;
-    NumericVector b = p3 - p2;
-    dotprod[i] = dot_product(cross_product(a, b), c);
+    arma::rowvec a = p2 - p1;
+    arma::rowvec b = p3 - p2;
+    dotprod[i] = arma::dot(arma::cross(a, b), p2);
+  }
+  
+  return dotprod;
+}
+
+// NumericVector by3rowscalartripleproduct(NumericMatrix points) {
+//   int n = points.nrow();
+//   int veclen = points.ncol();
+//   NumericVector dotprod(n - 2);
+//   NumericVector c(veclen, 0.0);
+//   
+//   c[0] = 1;
+//   for (int i = 0; i < n - 2; ++i) {
+//     NumericVector p1 = points.row(i);
+//     NumericVector p2 = points.row(i + 1);
+//     NumericVector p3 = points.row(i + 2);
+//     
+//     NumericVector a = p1 - p2;
+//     NumericVector b = p3 - p2;
+//     dotprod[i] = dot_product(cross_product(a, b), c);
+//   }
+//   
+//   return dotprod;
+// }
+
+// [[Rcpp::export]]
+NumericVector scalartripleproduct_pairs(arma::mat points, arma::rowvec v) {
+  int n = points.n_rows;
+  NumericVector dotprod(n - 1);
+  
+  for (int i = 0; i < n - 1 ; ++i) {
+    arma::rowvec p1 = points.row(i);
+    arma::rowvec  p2 = points.row(i + 1);
+    
+    dotprod[i] = arma::dot(arma::cross(p1, p2), v);
   }
   
   return dotprod;
 }
 
 // [[Rcpp::export]]
-NumericVector scalartripleproduct1(NumericMatrix points) {
-  int n = points.nrow();
+NumericVector scalartripleproduct0(arma::mat points, arma::rowvec v) {
+  int n = points.n_rows;
+  NumericVector dotprod(n - 1);
+  
+  for (int i = 0; i < n - 1 ; ++i) {
+    arma::rowvec  p1 = points.row(i);
+    arma::rowvec  p2 = points.row(i + 1);
+    
+    dotprod[i] = arma::dot(arma::cross(p1, p2), v);
+  }
+  
+  return dotprod;
+}
+
+// [[Rcpp::export]]
+NumericVector scalartripleproduct1(arma::mat points) {
+  int n = points.n_rows;
   NumericVector dotprod(n - 2);
 
   for (int i = 0; i < n - 2; ++i) {
-    NumericVector p1 = points.row(i);
-    NumericVector p2 = points.row(i + 1);
-    NumericVector p3 = points.row(i + 2);
+    arma::rowvec p1 = points.row(i);
+    arma::rowvec p2 = points.row(i + 1);
+    arma::rowvec p3 = points.row(i + 2);
     
-    dotprod[i] = dot_product(cross_product(p1, p2), p3);
+    dotprod[i] = arma::dot(arma::cross(p1, p3), p2);
   }
   
   return dotprod;
 }
 
 // [[Rcpp::export]]
-NumericVector scalartripleproduct2(NumericMatrix points) {
-  int n = points.nrow();
-  int veclen = points.ncol();
+NumericVector scalartripleproduct2(arma::mat points, arma::rowvec c) {
+  int n = points.n_rows;
   NumericVector dotprod(n - 1);
-  NumericVector c(veclen, 0.0);
-  
-  c[0] = 1;
   
   for (int i = 0; i < n - 1; ++i) {
-    NumericVector p1 = points.row(i);
-    NumericVector p2 = points.row(i + 1);
+    arma::rowvec p1 = points.row(i);
+    arma::rowvec p2 = points.row(i + 1);
     
-    dotprod[i] = dot_product(cross_product(p1, p2), c);
+    dotprod[i] = arma::dot(arma::cross(p1, p2), c);
   }
   
   return dotprod;
 }
 
 // [[Rcpp::export]]
-NumericVector scalartripleproduct3(NumericMatrix points) {
+arma::rowvec scalartripleproduct5(NumericMatrix points) {
   int n = points.nrow();
   int veclen = points.ncol();
-  NumericVector dotprod(n - 1);
-  NumericVector c(veclen, 0.0);
-  
-  c[1] = 1;
-  
-  for (int i = 0; i < n - 1; ++i) {
-    NumericVector p1 = points.row(i);
-    NumericVector p2 = points.row(i + 1);
-    
-    dotprod[i] = dot_product(cross_product(p1, p2), c);
-  }
-  
-  return dotprod;
-}
-
-// [[Rcpp::export]]
-NumericVector scalartripleproduct4(NumericMatrix points) {
-  int n = points.nrow();
-  int veclen = points.ncol();
-  NumericVector dotprod(n - 1);
-  NumericVector c(veclen, 0.0);
-  
-  c[2] = 1;
-  
-  for (int i = 0; i < n - 1; ++i) {
-    NumericVector p1 = points.row(i);
-    NumericVector p2 = points.row(i + 1);
-    
-    dotprod[i] = dot_product(cross_product(p1, p2), c);
-  }
-  
-  return dotprod;
-}
-
-// [[Rcpp::export]]
-NumericVector scalartripleproduct5(NumericMatrix points) {
-  int n = points.nrow();
-  int veclen = points.ncol();
-  NumericVector dotprod(n - 1);
-  NumericVector c(veclen, 0.0);
+  arma::vec dotprod(n - 1);
+  arma::rowvec c = arma::zeros<arma::rowvec>(veclen);
   
   c[0] = -0.5 * 2 * std::sqrt(1.0/3.0);
   c[1] = -0.5 * 2 * std::sqrt(1.0/3.0);
   c[2] = -0.5 * 2 * std::sqrt(1.0/3.0);
   
   for (int i = 0; i < n - 1; ++i) {
-    NumericVector p1 = points.row(i);
-    NumericVector p2 = points.row(i + 1);
+    arma::rowvec p1 = points.row(i);
+    arma::rowvec p2 = points.row(i + 1);
     
-    dotprod[i] = dot_product(cross_product(p1, p2), c);
+    dotprod[i] = arma::dot(arma::cross(p1, p2), c);
   }
   
   return dotprod;
 }
+
 // [[Rcpp::export]]
-NumericVector scalartripleproduct6(NumericMatrix points) {
+arma::vec scalartripleproduct6(NumericMatrix points) {
   int n = points.nrow();
   int veclen = points.ncol();
-  NumericVector dotprod(n - 1);
-  NumericVector c(veclen, 0.0);
+  arma::vec dotprod(n - 1);
+  arma::rowvec c = arma::zeros<arma::rowvec>(veclen);
   
   c[0] = (1.0-0.5) * 2 * std::sqrt(1.0/3.0);
   c[1] = -0.5 * 2 * std::sqrt(1.0/3.0);
   c[2] = (1.0-0.5) * 2 * std::sqrt(1.0/3.0);
   
   for (int i = 0; i < n - 1; ++i) {
-    NumericVector p1 = points.row(i);
-    NumericVector p2 = points.row(i + 1);
+    arma::rowvec p1 = points.row(i);
+    arma::rowvec p2 = points.row(i + 1);
     
-    dotprod[i] = dot_product(cross_product(p1, p2), c);
+    dotprod[i] = arma::dot(arma::cross(p1, p2), c);
   }
   
   return dotprod;
 }
+
 // [[Rcpp::export]]
-NumericVector scalartripleproduct7(NumericMatrix points) {
+arma::vec scalartripleproduct7(NumericMatrix points) {
   int n = points.nrow();
   int veclen = points.ncol();
-  NumericVector dotprod(n - 1);
-  NumericVector c(veclen, 0.0);
-  
+  arma::vec dotprod(n - 1);
+  arma::rowvec c = arma::zeros<arma::rowvec>(veclen);
+
   c[0] = -0.5 * 2 * std::sqrt(1.0/3.0);
   c[1] = (1.0-0.5) * 2 * std::sqrt(1.0/3.0);
   c[2] = (1.0-0.5) * 2 * std::sqrt(1.0/3.0);
   
   for (int i = 0; i < n - 1; ++i) {
-    NumericVector p1 = points.row(i);
-    NumericVector p2 = points.row(i + 1);
+    arma::rowvec p1 = points.row(i);
+    arma::rowvec p2 = points.row(i + 1);
     
-    dotprod[i] = dot_product(cross_product(p1, p2), c);
+    dotprod[i] = arma::dot(arma::cross(p1, p2), c);
   }
   
   return dotprod;
 }
+
 // [[Rcpp::export]]
-NumericVector scalartripleproduct8(NumericMatrix points) {
+arma::vec scalartripleproduct8(NumericMatrix points) {
   int n = points.nrow();
   int veclen = points.ncol();
-  NumericVector dotprod(n - 1);
-  NumericVector c(veclen, 0.0);
+  arma::vec dotprod(n - 1);
+  arma::rowvec c(veclen, 0.0);
   
   c[0] = (1.0-0.5) * 2 * std::sqrt(1.0/3.0);
   c[1] = (1.0-0.5) * 2 * std::sqrt(1.0/3.0);
   c[2] = -0.5 * 2 * std::sqrt(1.0/3.0);
   
   for (int i = 0; i < n - 1; ++i) {
-    NumericVector p1 = points.row(i);
-    NumericVector p2 = points.row(i + 1);
+    arma::rowvec p1 = points.row(i);
+    arma::rowvec p2 = points.row(i + 1);
     
-    dotprod[i] = dot_product(cross_product(p1, p2), c);
+    dotprod[i] = arma::dot(arma::cross(p1, p2), c);
   }
   
   return dotprod;
@@ -429,65 +481,47 @@ NumericVector scalartripleproduct8(NumericMatrix points) {
 
 
 
-// [[Rcpp::export]]
-NumericVector vertices_dist(NumericMatrix points, const NumericMatrix &baseCoords) {
-  int n = points.nrow();
-  int m = points.ncol(); 
-  NumericMatrix distances(n, baseCoords.ncol());
-  int k = 0;
-  int j; 
-  
-  if(m == 3){
-    for (int i = 0; i < n - 3; ++i) {
-      j = i + 2;
-      double di = points(i, 0) - points(j, 0);
-      double dj = points(i, 1) - points(j, 1);
-      double dk = points(i, 2) - points(j, 2);
-      distances[k++] = sqrt(di * di + dj * dj + dk * dk);
-      
-      
-    } 
-  } else if(m == 4) {
-    for (int i = 0; i < n - 3; ++i) {
-      j = i + 2;      
-      double dr = points(i, 0) - points(j, 0);
-      double di = points(i, 0) - points(j, 0);
-      double dj = points(i, 1) - points(j, 1);
-      double dk = points(i, 2) - points(j, 2);
-      distances[k++] = sqrt(dr * dr + di * di + dj * dj + dk * dk);
-    }
-  } else{
-    for (int i = 0; i < n - 3; ++i) {
-      j = i + 2;
-      double dist = 0;
-      for (int p = 0; p < m; ++p) {
-        double d = points(i, p) - points(j, p);
-        dist += d * d;
-      }
-      distances[k++] = sqrt(dist);
-    }
-  }
-  return distances;
-}
+// NumericVector vertices_dist(NumericMatrix points, const NumericMatrix &baseCoords) {
+//   int n = points.nrow();
+//   int m = baseCoords.ncol(); 
+//   NumericMatrix distances(n, baseCoords.ncol());
+//   int k = 0;
+//   
+//   if(m == 3){
+//     for (int i = 0; i < n; ++i) {
+//       for(int j = 0; j < m; ++j){
+//         double di = points(i, 0) - baseCoords(j, 0);
+//         double dj = points(i, 1) - baseCoords(j, 1);
+//         double dk = points(i, 2) - baseCoords(j, 2);
+//         distances[k++] = sqrt(di * di + dj * dj + dk * dk);
+//       }
+//     } 
+//   } else if(m == 4) {
+//     for (int i = 0; i < n; ++i) {
+//       for(int j = 0; j < m; ++j){
+//         double dr = points(i, 0) - baseCoords(j, 0);
+//         double di = points(i, 1) - baseCoords(j, 1);
+//         double dj = points(i, 2) - baseCoords(j, 2);
+//         double dk = points(i, 3) - baseCoords(j, 3);
+//         distances[k++] = sqrt(dr * dr + di * di + dj * dj + dk * dk);
+//       }
+//     }
+//   } else{
+//     for (int i = 0; i < n; ++i) {
+//       j = i + 2;
+//       double dist = 0;
+//       for (int p = 0; p < m; ++p) {
+//         double d = points(i, p) - points(j, p);
+//         dist += d * d;
+//       }
+//       distances[k++] = sqrt(dist);
+//     }
+//   }
+//   return distances;
+// }
 
 
-// [[Rcpp::export]]
-NumericMatrix distance_matrix(NumericMatrix mat1, NumericMatrix mat2) {
-  int nrow1 = mat1.nrow();
-  int nrow2 = mat2.nrow();
-  
-  NumericMatrix out(nrow1, nrow2);
-  
-  for(int i = 0; i < nrow1; i++) {
-    for(int j = 0; j < nrow2; j++) {
-      NumericVector vec1 = mat1.row(i);
-      NumericVector vec2 = mat2.row(j);
-      out(i, j) = euclidean_distance(vec1, vec2);
-    }
-  }
-  
-  return out;
-}
+
 
 
 
