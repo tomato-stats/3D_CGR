@@ -56,9 +56,25 @@ clustal_omega_tree <- function(dna_seq){
     plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
 }
 
+clustal_omega_tree <- function(dna_seq){
+  msa(dna_seq, type = "dna", method = "ClustalOmega") |> 
+    msaConvert(type = "ape::DNAbin") |> ape::dist.dna(model = "raw") |> sqrt() |> 
+    hclust() |> 
+    plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
+}
+
 clustal_omega_tree(beta_seq)
 clustal_omega_tree(nadh)
 clustal_omega_tree(sim_fas)
+
+# Hamming distance
+clustal_omega_tree <- function(dna_seq){
+  msa(dna_seq, type = "dna", method = "ClustalOmega") |> 
+    msaConvert(type = "ape::DNAbin") |> ape::dist.gene() |> sqrt() |> 
+    ape::nj() |> # hclust(method = "mcquitty") # for WPGMA
+    plot()
+}
+clustal_omega_tree(beta_seq)
 
 ```
 
@@ -68,16 +84,15 @@ clustal_omega_tree(sim_fas)
 # Shape signature results 
 #=====================================================================
 
-  
 beta_cg <- lapply(beta_seq, seq_to_hypercomplex_cg4)  
 nadh_cg <- lapply(nadh, seq_to_hypercomplex_cg4)  
 sim_cg <- lapply(sim_fas, seq_to_hypercomplex_cg4)  
   
 # Angular signature
 
-beta_features <- lapply(beta_cg, by3rowangle)
-nadh_features <- lapply(nadh_cg, by3rowangle)
-sim_features <- lapply(sim_cg, by3rowangle)
+beta_angles <- lapply(beta_cg, by3rowangle)
+nadh_angles <- lapply(nadh_cg, by3rowangle)
+sim_angles <- lapply(sim_cg, by3rowangle)
 
 feature_histograms(beta_features, bin_count = 2*max(nchar(beta_seq))) |> 
   vegan::vegdist(method = "robust.aitchison") |> hclust() |> plot()
