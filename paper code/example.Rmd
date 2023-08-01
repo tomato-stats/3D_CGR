@@ -26,6 +26,7 @@ library(stringr)
 library(magrittr)
 library(tidyverse)
 library(caret)
+library(ggplot2)
 
 set.seed(0)
 ```
@@ -33,48 +34,48 @@ set.seed(0)
 ```{r}
 #####################################################################
 # Example DNA sequences analyzed by 3D CGR / paper reproduction
-# This code does not run in parallel and can take a while to run.
+# This code does not run in parallel and the section on volume intersection
+# can take a while to run.
 # By: Stephanie Young <syoung2@sdsu.edu> <syoung49@its.jnj.com>
 #####################################################################
 
 #=====================================================================
-# Clustal Omega results for comparison
+# Clustal Omega + p-distance results for comparison
 #=====================================================================
 
-clustal_omega_tree <- function(dna_seq){
+# Function to align the sequences
+
+clustal_omega <- function(dna_seq, outgroup = NULL){
   msa(dna_seq, type = "dna", method = "ClustalOmega") |> 
-    msaConvert(type = "seqinr::alignment") |> 
-    dist.alignment(gap = T) |> 
-    hclust(method = "complete") |>
-    plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
+    msaConvert(type = "ape::DNAbin") |> ape::dist.gene() |> 
+    (\(x){x / max(x)})()
 }
 
-clustal_omega_tree <- function(dna_seq){
-  msa(dna_seq, type = "dna", method = "ClustalOmega") |> 
-    msaConvert(type = "ape::DNAbin") |> ape::dist.gene() |> sqrt() |> 
-    hclust() |> 
-    plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
+# Heatmap function
+
+hm <- function(distances, ...){
+  require(reshape2)
+  dat <- distances |> as.matrix() |> reshape2::melt(value.name = "distance")
+  # tri <- distances |> as.matrix() |> upper.tri(diag = T) |> reshape2::melt() |> pull(value)
+  # dat <- dat[tri, , drop = F]
+  dat |> 
+    ggplot() + 
+    geom_tile(aes(x = Var1, y = Var2, fill = distance)) + 
+    scale_fill_distiller(palette = "Spectral", ...) +
+    theme_light() + 
+    theme(
+      axis.text.x = element_text(angle = 90, vjust = .5), 
+      axis.title.x = element_blank(), 
+      axis.title.y = element_blank()
+    ) +
+    coord_fixed()
 }
 
-clustal_omega_tree <- function(dna_seq){
-  msa(dna_seq, type = "dna", method = "ClustalOmega") |> 
-    msaConvert(type = "ape::DNAbin") |> ape::dist.dna(model = "raw") |> sqrt() |> 
-    hclust() |> 
-    plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-}
 
-clustal_omega_tree(beta_seq)
-clustal_omega_tree(nadh)
-clustal_omega_tree(sim_fas)
-
-# Hamming distance
-clustal_omega_tree <- function(dna_seq){
-  msa(dna_seq, type = "dna", method = "ClustalOmega") |> 
-    msaConvert(type = "ape::DNAbin") |> ape::dist.gene() |> sqrt() |> 
-    ape::nj() |> # hclust(method = "mcquitty") # for WPGMA
-    plot()
-}
-clustal_omega_tree(beta_seq)
+clustal_omega(beta_seq) |> ape::bionj() |> ape::root("gallus") |> plot()
+clustal_omega(beta_seq) |> hm()
+clustal_omega(nadh) |> ape::bionj() |> ape::root("Saimiri sciureus") |> plot()
+clustal_omega(nadh) |> hm(trans = "exp") # transformation of color to facilitate visualization
 
 ```
 
@@ -86,7 +87,7 @@ clustal_omega_tree(beta_seq)
 
 beta_cg <- lapply(beta_seq, seq_to_hypercomplex_cg4)  
 nadh_cg <- lapply(nadh, seq_to_hypercomplex_cg4)  
-sim_cg <- lapply(sim_fas, seq_to_hypercomplex_cg4)  
+# sim_cg <- lapply(, seq_to_hypercomplex_cg4)  
   
 # Angular signature
 
