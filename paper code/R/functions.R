@@ -6,6 +6,7 @@
 library(stringr)
 library(hypervolume)
 library(Rcpp)
+
 #=====================================================================
 # Convert a DNA sequence to 3D CGR 
 #=====================================================================
@@ -121,7 +122,10 @@ hist_paired <- function(list_df, bin_count, return_bins = F){
       function(x) cutting_df(list_df[[x]], breaks = cut_points)
     )
   
-  cut_point_centers <- apply(cut_points, 2, zoo::rollmean, k = 2) |> as_tibble() |> rename_with(.f = partial(gsub, pattern = "V", replacement = "interval_")) 
+  cut_point_centers <- apply(cut_points, 2, zoo::rollmean, k = 2) |> 
+    as_tibble() |> 
+    rename_with(.f = partial(gsub, pattern = "V", replacement = "interval_")) 
+  
   output <- 
     Reduce(function(...) full_join(by = grep("interval_", colnames(output[[1]]), value = T), ...), output) |> 
     mutate(across(where(is.numeric), replace_na, 0)) |> 
@@ -202,6 +206,14 @@ coordinate_histograms <- function(cgr_coords, bin_count, return_bins = F, drop_e
   cgr_coords <- lapply(cgr_coords, 
                        function(x) preProcess(x, method = "zv") |>  predict(x))
   
+  # Remove the origin point if it is included
+  cgr_coords <- lapply(cgr_coords,
+                       function(x){
+                         if(all.equal(x[1,,drop = T], c(0, 0, 0), check.attributes = F)) return(x[-1,,drop = F])
+                         else return(x)
+                       }
+  )
+  
   # Remove row of zeros if there is one 
   if(all(sapply(cgr_coords, function(x) all(x[1,]==0)))){
     cgr_coords <- lapply(cgr_coords, function(x) x[-1,])
@@ -237,11 +249,6 @@ coordinate_histograms <- function(cgr_coords, bin_count, return_bins = F, drop_e
   else return(list(t(tabulations), bin_centers))
 }
 
-
-
-
-
-
 feature_signature <- function(dna_features, bin_count){
   features_breaks <- seq(min(unlist(dna_features)), max(unlist(dna_features)),
                          length.out = bin_count + 1)
@@ -256,6 +263,45 @@ feature_signature <- function(dna_features, bin_count){
     predict(features_tabulation)
 
   return(t(features_tabulation))
+}
+
+cgr_distance <- function(seq_cg, frac = 1/15, cs = T, ...){
+  combine_distances <- function(dist_list, p = 1){
+    n <- length(dist_list)
+    Reduce(`+`, lapply(dist_list, function(x){(1/n) * x^p}))^(1/p)
+  }
+  center_scale <- function(hist_mat,force_pos  = F){
+    output <- 
+      if(force_pos) {
+        output <- apply(hist_mat, 2, function(x) {(x- mean(x)) / sd(x)})
+        output <- output + abs(min(output))
+      } else {
+        output <- apply(hist_mat, 2, function(x) {(x- mean(x)) / sd(x)})
+      }
+    return(output)
+  }
+  if(cs) cen_scal <- center_scale
+  else cen_scal <- identity
+  
+  bins <- ceiling(frac * (mean(sapply(seq_cg, nrow)) - 1))
+  
+  combine_distances(list(
+    feature_histograms(lapply(seq_cg, function(x) orientedangle1(x[-1,], v =c(1, 0, 0))), bin_count = bins) |> cen_scal() |> dist() |> as.matrix(),
+    feature_histograms(lapply(seq_cg, function(x) orientedangle1(x[-1,], v =c(0, 1, 0))), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
+    feature_histograms(lapply(seq_cg, function(x) orientedangle1(x[-1,], v =c(0, 0, 1))), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
+    feature_histograms(lapply(seq_cg, by3roworientedangle4, v =c(1, 0, 0)), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
+    feature_histograms(lapply(seq_cg, by3roworientedangle4, v =c(0, 1, 0)), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
+    feature_histograms(lapply(seq_cg, by3roworientedangle4, v =c(0, 0, 1)), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
+    feature_histograms(lapply(seq_cg, orienteddistance1, v =c(1, 0, 0)), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
+    feature_histograms(lapply(seq_cg, orienteddistance1, v =c(0, 1, 0)), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
+    feature_histograms(lapply(seq_cg, orienteddistance1, v =c(0, 0, 1)), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
+    feature_histograms(lapply(seq_cg, by3roworienteddistance4, v =c(1, 0, 0)), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
+    feature_histograms(lapply(seq_cg, by3roworienteddistance4, v =c(0, 1, 0)), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
+    feature_histograms(lapply(seq_cg, by3roworienteddistance4, v =c(0, 0, 1)), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
+    (coordinate_histograms(seq_cg,  bin_count = bins) |> split_coord_histograms()) [[1]]|> cen_scal() |>  dist()|> as.matrix(),
+    (coordinate_histograms(seq_cg,  bin_count = bins) |> split_coord_histograms()) [[2]]|> cen_scal() |>  dist()|> as.matrix(),
+    (coordinate_histograms(seq_cg,  bin_count = bins) |> split_coord_histograms()) [[3]]|> cen_scal()|>  dist()|> as.matrix())
+  ) 
 }
 
 #=====================================================================
