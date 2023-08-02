@@ -11,30 +11,53 @@ library(Rcpp)
 # Convert a DNA sequence to 3D CGR 
 #=====================================================================
 
+switch.V <- 
+  function(x, ...){
+    sapply(x, function(EXPR) switch(EXPR, ...))
+  }
+
+read_dict <- 
+  function(x){
+    # The order of this function must stay fixed as this is the order used in 
+    # the C++ implementation of the chaos game. 
+    switch(
+      x, 
+      R = c("A", "G"),
+      Y = c("C", "T"),
+      K = c("G", "T"),
+      M = c("A", "C"),
+      S = c("C", "G"),
+      W = c("A", "T"),
+      B = c("C", "G", "T"),
+      D = c("A", "G", "T"),
+      H = c("A", "C", "T"),
+      V = c("A", "C", "G"), 
+      N = c("A", "C", "G", "T")
+    )
+  }
+
 # Coordinate table
 ## Function to make a table containing 3DCGR coordinates
-CGR_table <- function(A_, C_, G_, T_){
-  output <- rbind(A_, C_, G_, T_) |> as.data.frame() 
-  colnames(output) <- c("i", "j", "k")
-  rownames(output)
-  output[["Nucleotide"]] <- c("A", "C", "G", "T")
-  output <- 
-    rbind(
-      output, 
-      data.frame(output[output$Nucleotide %in% c("A", "G"),1:3] |> colMeans() |> t(), Nucleotide ="R"),
-      data.frame(output[output$Nucleotide %in% c("C", "T"),1:3] |> colMeans() |> t(), Nucleotide ="Y"),
-      data.frame(output[output$Nucleotide %in% c("G", "T"),1:3] |> colMeans() |> t(), Nucleotide ="K"),
-      data.frame(output[output$Nucleotide %in% c("A", "C"),1:3] |> colMeans() |> t(), Nucleotide ="M"),
-      data.frame(output[output$Nucleotide %in% c("C", "G"),1:3] |> colMeans() |> t(), Nucleotide ="S"),
-      data.frame(output[output$Nucleotide %in% c("A", "T"),1:3] |> colMeans() |> t(), Nucleotide ="W"),
-      data.frame(output[output$Nucleotide %in% c("C", "G", "T"),1:3] |> colMeans() |> t(), Nucleotide ="B"),
-      data.frame(output[output$Nucleotide %in% c("A", "G", "T"),1:3] |> colMeans() |> t(), Nucleotide ="D"),
-      data.frame(output[output$Nucleotide %in% c("A", "C", "T"),1:3] |> colMeans() |> t(), Nucleotide ="H"),
-      data.frame(output[output$Nucleotide %in% c("A", "C", "G"),1:3] |> colMeans() |> t(), Nucleotide ="V"),
-      data.frame(i = 0, j = 0, k = 0, Nucleotide = "N")
-    )
-  output
-}
+CGR_table <- 
+  function(A_, C_, G_, T_){
+    unknown_reads <- c("R", "Y", "K", "M", "S", "W", "B", "D", "H", "V", "N")
+    output <- matrix(nrow = 4 + length(unknown_reads), ncol = length(A_)) 
+    
+    output[1:4, ] <- rbind(A_, C_, G_, T_) 
+
+    idx <- purrr::partial(switch.V, A = 1, C = 2, G = 3, T = 4)
+    
+    row_index <- 5
+    for(u_r in unknown_reads){
+      output[row_index,] <- output[idx(read_dict(u_r)),] |> colMeans() |> t()
+      row_index <- row_index + 1
+    }
+    
+    output <- output |> as.data.frame()
+    output[["Nucleotide"]] <- c("A", "C", "G", "T", unknown_reads)
+    
+    return(output)
+  }
 
 coord1 <- CGR_table(
   (c(0, 0, 0) - (1/2)) * 2*sqrt(1/3),
@@ -53,23 +76,23 @@ coord2 <- CGR_table(
 sourceCpp("./R/chaosgame.cpp") 
 
 # (recursive implementation)
-seq_to_hypercomplex_cg4 <- function(dna_seq, CGR_coord = coord1, df = F){ 
-  # The input to this function is the DNA sequence and 
-  # a table of the CGR coordinates to be used
-  if(length(dna_seq) == 1) dna_seq <- str_split(toupper(dna_seq), "")[[1]]
-  
-  dna_seq <- dna_seq[which(dna_seq != "-")]
-  
-  cg <- chaosGame(dna_seq, as.matrix(CGR_coord[,1:3]))
-  if(df){
-    cg <- data.frame(cg)
-    cg[["r"]] <- 0
+seq_to_hypercomplex_cg <- 
+  function(dna_seq, CGR_coord = coord1, df = F, axes = c("i", "j", "k")){ 
+    # The input to this function is the DNA sequence and 
+    # a table of the CGR coordinates to be used
+    if(ncol(CGR_coord) != length(axes)) 
+      stop("Number of axes needs to match that of the CGR_coord") 
     
-    cg <- cg[, c("r", "i", "j", "k")]
+    if(length(dna_seq) == 1) dna_seq <- str_split(toupper(dna_seq), "")[[1]]
+    
+    # Remove gaps
+    dna_seq <- dna_seq[which(dna_seq != "-")]
+    
+    # Chaos game 
+    cg <- chaosGame(dna_seq, as.matrix(CGR_coord[,1:length(axes)]))
+    colnames(cg) <- axes_names
+    return(cg)
   }
-  else colnames(cg) <- c("i", "j", "k")
-  return(cg)
-}
 
 #=====================================================================
 # Functions for shape signature methods
@@ -77,13 +100,16 @@ seq_to_hypercomplex_cg4 <- function(dna_seq, CGR_coord = coord1, df = F){
 
 sourceCpp("./R/features.cpp")
 
-## Functions for building a joint histogram
+## Functions for building histograms for multiple features.
+## Not really used, but may be helpful for future implementations. 
 
+### One histogram for each feature
 hist_df_unpaired <- function(df, breaks){
   if(length(breaks) != ncol(df)) "hist_df_unpaired being used incorrectly"
   sapply(1:ncol(df), function(x) hist(df[,x], breaks[[x]], plot = F)$counts)
 }
 
+### Functions for building joint histograms for multiple features
 cutting_df <- function(df, breaks){
   # df is a data frame with n columns 
   # breaks is a data frame with n columns
@@ -132,12 +158,13 @@ hist_paired <- function(list_df, bin_count, return_bins = F){
 
 #=====================================================================
 # Function to implement feature signature methods 
-# (applicable to angles and edges)
+# by building histograms for features (such as angles and edge lengths) 
+# and/or coordinates
 #=====================================================================
 
 feature_histograms <- function(dna_features, bin_count, return_bins = F, return_bin_centers = F, drop_empty = F){
   if(max(unlist(dna_features)) == pi & min(unlist(dna_features)) == -pi){
-    # histograms for angles
+    # Histograms for angles
     remove_pi <- function(x){
       new_x <- x[which(abs(pi - x) > 3e-08)]
       new_x <- new_x[which(abs(-pi - new_x) > 3e-08)]
