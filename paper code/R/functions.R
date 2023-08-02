@@ -72,19 +72,12 @@ seq_to_hypercomplex_cg4 <- function(dna_seq, CGR_coord = coord1, df = F){
 }
 
 #=====================================================================
-# Functions necessary for shape signature methods
+# Functions for shape signature methods
 #=====================================================================
 
 sourceCpp("./R/features.cpp")
 
-distance_from_vertices <- function(points, CGR_coord = coord1){
-  if(!is.matrix(points)) points <- as.matrix(points)
-  if(all(points[1,] == 0)) points <- points[-1,]
-  if(all(points[,1] == 0)) points <- points[,-1]
-  distance_matrix(points, as.matrix(CGR_coord[1:4,1:3]))
-}
-
-## Functions related to coordinate signature 
+## Functions for building a joint histogram
 
 hist_df_unpaired <- function(df, breaks){
   if(length(breaks) != ncol(df)) "hist_df_unpaired being used incorrectly"
