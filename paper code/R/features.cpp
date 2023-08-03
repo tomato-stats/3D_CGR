@@ -50,6 +50,8 @@ double oriented_distance(arma::rowvec a, arma::rowvec b, arma::rowvec n) {
 //-----------------------------------------
 
 // angles and edge lengths in a 3-point sliding window
+// These functions are still here, but have essentially been superceded by 
+// oriented measurements. Likely to be removed soon. 
 
 // [[Rcpp::export]]
 NumericVector by3rowangle(arma::mat points) {
