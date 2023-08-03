@@ -6,6 +6,11 @@ using namespace Rcpp;
 
 // [[Rcpp::depends(RcppArmadillo)]]
 
+
+//-----------------------------------------
+// Calculations
+//-----------------------------------------
+
 // [[Rcpp::export]]
 // Calculates the angle between two vectors
 double angle(arma::rowvec a, arma::rowvec b) {
@@ -38,6 +43,13 @@ double oriented_distance(arma::rowvec a, arma::rowvec b, arma::rowvec n) {
   double sign = arma::dot(b-a, n) < 0 ? -1.0 : 1.0;
   return sign * dist; 
 }
+
+
+//-----------------------------------------
+// Shape features 
+//-----------------------------------------
+
+// angles and edge lengths in a 3-point sliding window
 
 // [[Rcpp::export]]
 NumericVector by3rowangle(arma::mat points) {
@@ -73,8 +85,12 @@ NumericVector by3rowdistance(NumericMatrix points) {
   return distances;
 }
 
+// oriented angles and edge lengths in a 3-point sliding window
+
+
 // [[Rcpp::export]]
 NumericVector by3roworientedangle1(arma::mat points) {
+  // oriented angle in a 3-point sliding window relative to the vector pointing to the vertex
   int n = points.n_rows;
   NumericVector angles(n - 2);
   
@@ -85,7 +101,7 @@ NumericVector by3roworientedangle1(arma::mat points) {
     
     arma::rowvec a = p1 - p2;
     arma::rowvec b = p3 - p2;
-    //angles[i] = oriented_angle(a, b, arma::cross(a, b));
+    //angles[i] = oriented_angle(a, b, arma::cross(a, b)); this removes the direction component
     angles[i] = oriented_angle(a, b, p2);
   }
   
@@ -94,17 +110,15 @@ NumericVector by3roworientedangle1(arma::mat points) {
 
 // [[Rcpp::export]]
 NumericVector by3roworientedangle2(arma::mat points, arma::rowvec v) {
+  // oriented angle in a 3-point sliding window relative to the vector v
   int n = points.n_rows;
   NumericVector angles(n - 2);
   
   for (int i = 0; i < n - 2; ++i) {
     arma::rowvec p1 = points.row(i);
-    arma::rowvec p2 = points.row(i + 1);
     arma::rowvec p3 = points.row(i + 2);
-    
-    arma::rowvec a = p1 - p2;
-    arma::rowvec b = p3 - p2;
-    angles[i] = oriented_angle(a, b, v);
+
+    angles[i] = oriented_angle(p1, p3, v);
   }
   
   return angles;
@@ -121,6 +135,24 @@ NumericVector by3roworientedangle3(arma::mat points) {
     arma::rowvec p3 = points.row(i + 2);
 
     angles[i] = oriented_angle(p1, p3, p2);
+  }
+  
+  return angles;
+}
+
+// [[Rcpp::export]]
+NumericVector by3roworientedangle4(arma::mat points, arma::rowvec v) {
+  int n = points.n_rows;
+  NumericVector angles(n - 2);
+  
+  for (int i = 0; i < n - 2; ++i) {
+    arma::rowvec p1 = points.row(i);
+    arma::rowvec p2 = points.row(i + 1);
+    arma::rowvec p3 = points.row(i + 2);
+    
+    arma::rowvec a = p1 - p2;
+    arma::rowvec b = p3 - p2;
+    angles[i] = oriented_angle(a, b, v);
   }
   
   return angles;
@@ -164,18 +196,36 @@ NumericVector by3roworienteddistance2(NumericMatrix points, NumericVector v = Nu
 NumericVector by3roworienteddistance3(NumericMatrix points) {
   int n = points.nrow();
   NumericVector angles(n - 2);
+
+  for (int i = 0; i < n - 2; ++i) {
+    NumericVector p1 = points.row(i);
+    NumericVector p2 = points.row(i + 1);
+    NumericVector p3 = points.row(i + 2);
+
+    angles[i] = oriented_distance(p1, p3, p2);
+  }
+
+  return angles;
+}
+
+
+// [[Rcpp::export]]
+NumericVector by3roworienteddistance4(NumericMatrix points, NumericVector v = NumericVector::create(1.0, 0.0, 0.0)) {
+  int n = points.nrow();
+  NumericVector distances(n - 2);
   
   for (int i = 0; i < n - 2; ++i) {
     NumericVector p1 = points.row(i);
     NumericVector p2 = points.row(i + 1);
     NumericVector p3 = points.row(i + 2);
     
-    angles[i] = oriented_distance(p1, p3, p2);
+    NumericVector a = p1 - p2;
+    NumericVector b = p3 - p2;
+    distances[i] = oriented_distance(a, b, v);
   }
   
-  return angles;
+  return distances;
 }
-
 
 // [[Rcpp::export]]
 NumericVector orienteddistance(NumericMatrix points) {
@@ -192,6 +242,37 @@ NumericVector orienteddistance(NumericMatrix points) {
   
   return distances;
 }
+
+// [[Rcpp::export]]
+NumericVector orienteddistance1(NumericMatrix points, NumericVector v = NumericVector::create(1.0, 0.0, 0.0)) {
+  int n = points.nrow();
+  NumericVector distances(n - 1);
+  
+  for (int i = 1; i < n - 1; ++i) {
+    NumericVector p1 = points.row(i);
+    NumericVector p2 = points.row(i + 1);
+    
+    distances[i] = oriented_distance(p1, p2, v);
+  }
+  
+  return distances;
+}
+
+// [[Rcpp::export]]
+NumericVector orientedangle1(arma::mat points, arma::rowvec v) {
+  int n = points.n_rows;
+  NumericVector angles(n - 1);
+  
+  for (int i = 0; i < n - 1; ++i) {
+    arma::rowvec p1 = points.row(i);
+    arma::rowvec p2 = points.row(i + 1);
+    
+    angles[i] = oriented_angle(p1, p2, v);
+  }
+  
+  return angles;
+}
+
 
 // [[Rcpp::export]]
 NumericVector by2rowdotprod(NumericMatrix points) {
@@ -218,7 +299,7 @@ NumericVector by3rowdotprod(NumericMatrix points) {
     arma::rowvec p2 = points.row(i + 1);
     arma::rowvec p3 = points.row(i + 2);
     
-    arma::rowvec a = p2 - p1;
+    arma::rowvec a = p1 - p2;
     arma::rowvec b = p3 - p2;
     dotprod[i] = arma::dot(a, b);
   }
@@ -306,7 +387,7 @@ NumericVector by3rowscalartripleproduct(NumericMatrix points) {
     arma::rowvec p2 = points.row(i + 1);
     arma::rowvec p3 = points.row(i + 2);
     
-    arma::rowvec a = p2 - p1;
+    arma::rowvec a = p1 - p2;
     arma::rowvec b = p3 - p2;
     dotprod[i] = arma::dot(arma::cross(a, b), p2);
   }
