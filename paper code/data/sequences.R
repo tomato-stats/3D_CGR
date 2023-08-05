@@ -2,9 +2,11 @@ library(haplotypes)
 
 # Simulated sequences
 
-sim_fas <- read.fas("./data/Simutation.fas")
+sim_fas <- read.fas("./data/sim.fas")
 sim_fas <- apply(sim_fas@sequence, 1, paste, collapse="")
 sim_fas <- gsub("-", "", sim_fas)
+names(sim_fas) <- c("A", "B")
+
 
 # Coding sequences of the first exon of beta-globin gene
 

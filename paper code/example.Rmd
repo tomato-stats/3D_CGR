@@ -28,6 +28,9 @@ library(tidyverse)
 library(caret)
 library(ggplot2)
 
+# Other packages not loaded, but you will need to run the code are: 
+# zoo, purrr, reshape2
+
 set.seed(0)
 ```
 
@@ -54,7 +57,6 @@ clustal_omega <- function(dna_seq, outgroup = NULL){
 # Heatmap function
 
 hm <- function(distances, ...){
-  require(reshape2)
   dat <- distances |> as.matrix() |> reshape2::melt(value.name = "distance")
   # tri <- distances |> as.matrix() |> upper.tri(diag = T) |> reshape2::melt() |> pull(value)
   # dat <- dat[tri, , drop = F]
@@ -76,6 +78,8 @@ clustal_omega(beta_seq) |> ape::bionj() |> ape::root("gallus") |> plot()
 clustal_omega(beta_seq) |> hm()
 clustal_omega(nadh) |> ape::bionj() |> ape::root("Saimiri sciureus") |> plot()
 clustal_omega(nadh) |> hm(trans = "exp") # transformation of color to facilitate visualization
+clustal_omega(sim_fas)
+
 
 ```
 
@@ -89,155 +93,8 @@ beta_cg <- lapply(beta_seq, seq_to_hypercomplex_cg4)
 nadh_cg <- lapply(nadh, seq_to_hypercomplex_cg4)  
 # sim_cg <- lapply(, seq_to_hypercomplex_cg4)  
   
-# Angular signature
+cgr_distance(beta_cg)
 
-beta_angles <- lapply(beta_cg, by3rowangle)
-nadh_angles <- lapply(nadh_cg, by3rowangle)
-sim_angles <- lapply(sim_cg, by3rowangle)
-
-feature_histograms(beta_features, bin_count = 2*max(nchar(beta_seq))) |> 
-  vegan::vegdist(method = "robust.aitchison") |> hclust() |> plot()
-
-feature_histograms(beta_features, bin_count = 2*max(nchar(beta_seq))) |>
-  kdist() |> as.dist() |> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-feature_histograms(nadh_features, bin_count = 2*max(nchar(nadh))) |>
-  kdist() |> as.dist() |> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-feature_histograms(sim_features, bin_count = 2*max(nchar(sim_fas))) |>
-  kdist() |> as.dist() |> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-
-
-
-feature_signature(beta_features, bin_count = 2*max(nchar(beta_seq))) |> 
-  (\(x)(log(x + abs(min(x)) + 0.1) -log(1.1))/ (log(.1) - log(1.1)))() |> 
-   dist() |> hclust(method = "complete") |>
-    plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-feature_signature(nadh_features, bin_count = 2*max(nchar(nadh))) |>
-  (\(x)(log(x + abs(min(x)) + 0.1) -log(1.1))/ (log(.1) - log(1.1)))() |> 
-    dist() |> as.dist() |> hclust(method = "complete") |>
-    plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-feature_signature(sim_features, bin_count = 2*max(nchar(sim_fas))) |>
-  (\(x)(log(x + abs(min(x)) + 0.1) -log(1.1))/ (log(.1) - log(1.1)))() |> 
-    dist() |> as.dist() |> hclust(method = "complete") |>
-    plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-
-temp <- philentropy::KL(feature_histograms(beta_features, bin_count = 2*max(nchar(beta_seq))) / rowSums(feature_histograms(beta_features, bin_count = 2*max(nchar(beta_seq))))) 
-rownames(temp) <- names(beta_seq) 
-colnames(temp)
-temp |> kdist() |> as.dist() |> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-
-temp <- philentropy::KL(feature_histograms(nadh_features, bin_count = 2*max(nchar(beta_seq))) / rowSums(feature_histograms(nadh_features, bin_count = 2*max(nchar(nadh_features))))) 
-rownames(temp) <- names(nadh_features) 
-colnames(temp)
-temp |> kdist() |> as.dist() |> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-
-temp <- philentropy::KL(feature_histograms(beta_features, bin_count = 2*max(nchar(beta_seq))) / rowSums(feature_histograms(beta_features, bin_count = 2*max(nchar(beta_seq))))) 
-rownames(temp) <- names(beta_seq) 
-colnames(temp)
-temp |> kdist() |> as.dist() |> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-
-TEST
-
-temp <- lapply(seq_along(beta_seq), function(i) cbind(beta_features_a[[i]], beta_features_e[[i]]))
-names(temp) <- names(beta_seq)
-hist_paired(temp, bin_count = max(nchar(beta_seq)) / 2 ) |>
-  kdist() |> as.dist() |> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-
-temp <- lapply(seq_along(nadh), function(i) cbind(nadh_features_a[[i]], nadh_features_e[[i]]))
-names(temp) <- names(nadh)
-hist_paired(temp, bin_count = max(nchar(nadh)) / 2 ) |>
-  kdist() |> as.dist() |> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-
-temp <- lapply(seq_along(sim_fas), function(i) cbind(sim_features_a[[i]], sim_features_e[[i]]))
-names(temp) <- names(sim_fas)
-hist_paired(temp, bin_count = max(nchar(sim_fas)) / 2 ) |>
-  kdist() |> as.dist() |> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-
-
-
-temp <- lapply(seq_along(beta_seq), function(i) cbind(beta_features_a[[i]], beta_cg[[i]][-c(1, lapply(beta_cg, nrow)[[i]]),1]))
-names(temp) <- names(beta_seq)
-hist_paired(temp, bin_count = max(nchar(beta_seq)) / 2 ) |>
-  kdist() |> as.dist() |> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-
-temp <- lapply(seq_along(nadh), function(i) cbind(nadh_features_a[[i]],  nadh_cg[[i]][-c(1, lapply(nadh_cg, nrow)[[i]]),1]))
-names(temp) <- names(nadh)
-hist_paired(temp, bin_count = max(nchar(nadh)) / 2 ) |>
-  kdist() |> as.dist() |> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-
-temp <- lapply(seq_along(sim_fas), function(i) cbind(sim_features_a[[i]],  sim_cg[[i]][-c(1, lapply(sim_cg, nrow)[[i]]),1]))
-names(temp) <- names(sim_fas)
-hist_paired(temp, bin_count = max(nchar(sim_fas)) / 2 ) |>
-  kdist() |> as.dist() |> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-
-
-
-# Edge signature
-
-beta_features <- lapply(beta_cg, by3rowdistance)
-nadh_features <- lapply(nadh_cg, by3rowdistance)
-sim_features <- lapply(sim_cg, by3rowdistance)
-
-feature_histograms(beta_features, bin_count = 2*max(nchar(beta_seq))) |>
-  kdist() |> as.dist() |> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-feature_histograms(nadh_features, bin_count = 2*max(nchar(nadh))) |>
-  kdist() |> as.dist() |> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-feature_histograms(sim_features, bin_count = 2*max(nchar(sim_fas))) |>
-  kdist() |> as.dist() |> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-
-
-# Coordinate signature
-
-
-coordinate_signature(beta_cg, bin_count = 2*max(sapply(beta_cg, nrow))/3) |>
-  (\(x)(log(x + abs(min(x)) + 0.1) -log(1.1))/ (log(.1) - log(1.1)))() |> 
-  dist()|> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-coordinate_signature(nadh_cg, bin_count = 2*max(sapply(nadh_cg, nrow))/3) |>
-  (\(x)(log(x + abs(min(x)) + 0.1) -log(1.1))/ (log(.1) - log(1.1)))() |> 
-  dist()|> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-coordinate_signature(sim_cg, bin_count = 2*max(sapply(sim_cg, nrow))/3) |>
-  (\(x)(log(x + abs(min(x)) + 0.1) -log(1.1))/ (log(.1) - log(1.1)))() |> 
-  dist()|> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-
-
-
-coordinate_histograms(beta_cg, bin_count = 2*max(sapply(beta_cg, nrow))/3) |>
-  kdist() |> as.dist() |> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-coordinate_histograms(nadh_cg, bin_count = 2*max(sapply(nadh_cg, nrow))/3) |>
-  kdist() |> as.dist()  |> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-coordinate_histograms(sim_cg, bin_count = 2*max(sapply(sim_cg, nrow))/3) |>
-  kdist() |> as.dist() |> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-
-
-hist_paired(beta_cg, bin_count = 2*max(sapply(beta_cg, nrow))/3) |>
-  kdist() |> as.dist() |> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-hist_paired(nadh_cg, bin_count = 2*max(sapply(nadh_cg, nrow))/3) |>
-  kdist() |> as.dist()  |> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
-hist_paired(sim_cg, bin_count = 2*max(sapply(sim_cg, nrow))/3) |>
-  kdist() |> as.dist() |> hclust(method = "complete") |>
-  plot(axes = F, xlab = NULL, ylab = NULL, main = NULL, sub = NULL, ann = F)
 
 
 #=====================================================================
