@@ -78,7 +78,7 @@ coord2 <- CGR_table(
 sourceCpp("./R/chaosgame.cpp") 
 
 # (recursive implementation)
-seq_to_hypercomplex_cg <- 
+seq_to_cgr <- 
   function(dna_seq, CGR_coord = coord1, df = F, axes = c("i", "j", "k")){ 
     # The input to this function is the DNA sequence and 
     # a table of the CGR coordinates to be used
@@ -395,14 +395,14 @@ vol_int_tan <-
     # This implementation does not use parallelization and is not recommended 
     output <- matrix(1, nrow = length(sequence_list), ncol = length(sequence_list))
     
-    cg4_list <- lapply(sequence_list, function(dna_seq) seq_to_hypercomplex_cg4(dna_seq) |> (\(x)(x[-1,-1]))())  
+    cg_list <- lapply(sequence_list, function(dna_seq) seq_to_cgr(dna_seq) |> (\(x)(x[-1,-1]))())  
     
     hypervolumes1 <- 
       lapply(seq_along(sequence_list), 
              function(i) 
                do.call(hypervolume_gaussian, 
-                       c(list(cg4_list[[i]], sd.count = 4,  
-                              kde.bandwidth = estimate_bandwidth(data=cg4_list[[i]], method = "fixed", value = bandwidth),
+                       c(list(cg_list[[i]], sd.count = 4,  
+                              kde.bandwidth = estimate_bandwidth(data=cg_list[[i]], method = "fixed", value = bandwidth),
                               name = names(sequence_list)[[i]]), hv_args)))
     
     pairwise_combn <- combn(1:length(sequence_list), 2, simplify = F)
@@ -444,15 +444,15 @@ volume_intersection_tanimoto <-
     clusterExport(
       cl, 
       c("str_split", 
-        "seq_to_hypercomplex_cg4", "seq_to_hypercomplex_cg4_nr"), 
+        "seq_to_cgr"), 
       envir = environment()
     )
     
-    cg4_list <- 
+    cg_list <- 
       parLapply(
         cl, 
         sequence_list, 
-        function(dna_seq) seq_to_hypercomplex_cg4_nr(dna_seq) |> (\(x)(x[-1,-1]))()
+        function(dna_seq) seq_to_cgr(dna_seq) |> (\(x)(x[-1,-1]))()
       )  
     
     ## set up each worker.
@@ -460,7 +460,7 @@ volume_intersection_tanimoto <-
     
     clusterExport(
       cl, 
-      c("sequence_list", "cg4_list", "bandwidth"),
+      c("sequence_list", "cg_list", "bandwidth"),
       envir = environment()
     )
     
@@ -470,8 +470,8 @@ volume_intersection_tanimoto <-
         seq_along(sequence_list), 
         function(i) 
           do.call(hypervolume_gaussian, 
-                  c(list(cg4_list[[i]], sd.count = 4,  
-                         kde.bandwidth = estimate_bandwidth(data=cg4_list[[i]], method = "fixed", value = bandwidth),
+                  c(list(cg_list[[i]], sd.count = 4,  
+                         kde.bandwidth = estimate_bandwidth(data=cg_list[[i]], method = "fixed", value = bandwidth),
                          name = names(sequence_list)[[i]]), hv_args)
           )
       )
