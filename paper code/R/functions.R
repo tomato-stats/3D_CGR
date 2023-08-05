@@ -101,8 +101,8 @@ seq_to_hypercomplex_cg <-
 sourceCpp("./R/features.cpp")
 
 ## Functions for building histograms for multiple features.
-## Not really used, but may be helpful for future implementations using 
-## joint probability distribution information 
+## Paired histogram currently not used, but may be helpful for future 
+## implementations using joint probability distribution information 
 
 ### One histogram for each feature
 hist_df_unpaired <- function(df, breaks){
@@ -163,6 +163,11 @@ hist_paired <- function(list_df, bin_count, return_bins = F){
 # and/or coordinates
 #=====================================================================
 
+remove_zv <- function(input_matrix, dim = 2){
+  # Function to identify zero-variance columns
+  zv <- apply(input_matrix, dim, function(x){ length(unique(x)) == 1})
+  return(input_matrix[,!zv, drop = F])
+}
 
 feature_histograms <- 
   function(features, bin_count, return_bins = F, return_bin_centers = F, drop_empty = F){
@@ -229,13 +234,12 @@ feature_histograms <-
 coordinate_histograms <- 
   function(cgr_coords, bin_count, return_bins = F, drop_empty = F){
     # Remove columns with constant data
-    cgr_coords <- lapply(cgr_coords, 
-                         function(x) preProcess(x, method = "zv") |>  predict(x))
+    cgr_coords <- lapply(cgr_coords, remove_zv)
     
     # Remove the origin point if it is included
     cgr_coords <- lapply(cgr_coords,
                          function(x){
-                           if(all.equal(x[1,,drop = T], c(0, 0, 0), check.attributes = F)) return(x[-1,,drop = F])
+                           if(all(x[1,,drop = T] == 0)) return(x[-1,,drop = F])
                            else return(x)
                          }
     )
@@ -250,11 +254,11 @@ coordinate_histograms <-
     hist_ub <- apply(do.call(rbind, cgr_coords), 2, max)
     
     # Get histogram intervals for each axis
-    hist_breaks <- list()
+    hist_breaks <- vector(mode = "list", length = ncol(cgr_coords))
     for(i in seq_along(hist_lb)){
-      insert_me <- unique(seq(hist_lb[i], hist_ub[i], length.out = bin_count + 1))
-      if(length(insert_me) < 2) insert_me <- c(insert_me, insert_me + 1) 
-      hist_breaks[[i]] <- insert_me
+      breaks_i <- unique(seq(hist_lb[i], hist_ub[i], length.out = bin_count + 1))
+      if(length(breaks_i) < 2) breaks_i <- c(breaks_i, breaks_i + 1) 
+      hist_breaks[[i]] <- breaks_i
     }
     bin_centers <- sapply(hist_breaks, partial(.f = zoo::rollmean, k = 2))
     
