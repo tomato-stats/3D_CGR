@@ -112,7 +112,8 @@ NumericVector by3roworientedangle1(arma::mat points) {
 
 // [[Rcpp::export]]
 NumericVector by3roworientedangle2(arma::mat points, arma::rowvec v) {
-  // oriented angle in a 3-point sliding window relative to the vector v
+  // oriented angles between every point and two points away through the origin 
+  // relative to vector v
   int n = points.n_rows;
   NumericVector angles(n - 2);
   
