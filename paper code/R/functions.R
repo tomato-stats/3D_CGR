@@ -106,57 +106,60 @@ sourceCpp("./R/features.cpp")
 ## implementations using joint probability distribution information 
 
 ### One histogram for each feature
-hist_df_unpaired <- function(df, breaks){
-  if(length(breaks) != ncol(df)) "hist_df_unpaired being used incorrectly"
-  sapply(1:ncol(df), function(x) hist(df[,x], breaks[[x]], plot = F)$counts)
-}
+hist_df_unpaired <- 
+  function(df, breaks){
+    if(length(breaks) != ncol(df)) "hist_df_unpaired being used incorrectly"
+    sapply(1:ncol(df), function(x) hist(df[,x], breaks[[x]], plot = F)$counts)
+  }
 
 ### Functions for building joint histograms for multiple features
-cutting_df <- function(df, breaks){
-  # df is a data frame with n columns 
-  # breaks is a data frame with n columns
-  output <- data.frame(matrix(ncol = 0, nrow = nrow(df)))
-  for(i in 1:ncol(df)){
-    output[[paste0("interval_", i)]] <- cut(df[,i], breaks[,i], include.lowest = T)
+cutting_df <- 
+  function(df, breaks){
+    # df is a data frame with n columns 
+    # breaks is a data frame with n columns
+    output <- data.frame(matrix(ncol = 0, nrow = nrow(df)))
+    for(i in 1:ncol(df)){
+      output[[paste0("interval_", i)]] <- cut(df[,i], breaks[,i], include.lowest = T)
+    }
+    
+    output |> group_by(across(starts_with("interval_"))) |> 
+      summarise(n = n(), .groups = "drop")
   }
-  
-  output |> group_by(across(starts_with("interval_"))) |> 
-    summarise(n = n(), .groups = "drop")
-}
 
-hist_paired <- function(list_df, bin_count, return_bins = F){
-  # Inputs are a list of features that have been column bound;
-  # Each element in a list is an organism
-  
-  # cut points  
-  cut_lb <- apply(sapply(list_df, function(x) apply(x, 2, min)), 1, min)
-  cut_ub <- apply(sapply(list_df, function(x) apply(x, 2, max)), 1, max)
-  cut_points <- 
-    sapply(
-      1:ncol(list_df[[1]]), 
-      function(i) seq(cut_lb[i], cut_ub[i], length = bin_count + 1)
-    ) 
-  
-  output <- 
-    lapply(
-      seq_along(list_df), 
-      function(x) cutting_df(list_df[[x]], breaks = cut_points)
-    )
-  
-  cut_point_centers <- apply(cut_points, 2, zoo::rollmean, k = 2) |> 
-    as_tibble() |> 
-    rename_with(.f = partial(gsub, pattern = "V", replacement = "interval_")) 
-  
-  output <- 
-    Reduce(function(...) full_join(by = grep("interval_", colnames(output[[1]]), value = T), ...), output) |> 
-    mutate(across(where(is.numeric), replace_na, 0)) |> 
-    mutate(across(contains("interval_"), .fns = function(x) cut_point_centers[[cur_column()]][x]))
-  
-  counts <- output |> select(!starts_with("interval_")) |> as.matrix() |> t()
-  rownames(counts) <- names(list_df)
-  if(!return_bins) return(counts)
-  else return(list(counts, output |> select(starts_with("interval"))))
-}
+hist_paired <- 
+  function(list_df, bin_count, return_bins = F){
+    # Inputs are a list of features that have been column bound;
+    # Each element in a list is an organism
+    
+    # cut points  
+    cut_lb <- apply(sapply(list_df, function(x) apply(x, 2, min)), 1, min)
+    cut_ub <- apply(sapply(list_df, function(x) apply(x, 2, max)), 1, max)
+    cut_points <- 
+      sapply(
+        1:ncol(list_df[[1]]), 
+        function(i) seq(cut_lb[i], cut_ub[i], length = bin_count + 1)
+      ) 
+    
+    output <- 
+      lapply(
+        seq_along(list_df), 
+        function(x) cutting_df(list_df[[x]], breaks = cut_points)
+      )
+    
+    cut_point_centers <- apply(cut_points, 2, zoo::rollmean, k = 2) |> 
+      as_tibble() |> 
+      rename_with(.f = partial(gsub, pattern = "V", replacement = "interval_")) 
+    
+    output <- 
+      Reduce(function(...) full_join(by = grep("interval_", colnames(output[[1]]), value = T), ...), output) |> 
+      mutate(across(where(is.numeric), replace_na, 0)) |> 
+      mutate(across(contains("interval_"), .fns = function(x) cut_point_centers[[cur_column()]][x]))
+    
+    counts <- output |> select(!starts_with("interval_")) |> as.matrix() |> t()
+    rownames(counts) <- names(list_df)
+    if(!return_bins) return(counts)
+    else return(list(counts, output |> select(starts_with("interval"))))
+  }
 
 #=====================================================================
 # Function to implement feature signature methods 
@@ -324,105 +327,103 @@ coordinate_histograms <-
 # Functions to calculate distance based on shape signature
 #=====================================================================
 
-split_coord_histograms <- function(histograms, num_axes){
-  histograms.ncol <- ncol(histograms)
-  starts <- (0:(num_axes - 1)) * (histograms.ncol / num_axes) + 1
-  ends <-  (1:num_axes) * (histograms.ncol / num_axes)
-  output <- lapply(1:num_axes, function(i) histograms[,starts[i]:ends[i]])
-  return(output) 
-}
-
-cgr_distance <- function(seq_cg, frac = 1/15, cs = T, ...){
-  
-  combine_distances <- function(dist_list, p = 1){
-    n <- length(dist_list)
-    Reduce(`+`, lapply(dist_list, function(x){(1/n) * x^p}))^(1/p)
+split_coord_histograms <- 
+  function(histograms, num_axes){
+    histograms.ncol <- ncol(histograms)
+    starts <- (0:(num_axes - 1)) * (histograms.ncol / num_axes) + 1
+    ends <-  (1:num_axes) * (histograms.ncol / num_axes)
+    output <- lapply(1:num_axes, function(i) histograms[,starts[i]:ends[i]])
+    return(output) 
   }
-  
-  center_scale <- function(hist_mat){
-    apply(hist_mat, 2, function(x) {(x- mean(x)) / sd(x)})
+
+cgr_distance <- 
+  function(seq_cg, frac = 1/15, cs = T, ...){
+    
+    combine_distances <- function(dist_list, p = 1){
+      n <- length(dist_list)
+      Reduce(`+`, lapply(dist_list, function(x){(1/n) * x^p}))^(1/p)
+    }
+    
+    center_scale <- function(hist_mat){
+      apply(hist_mat, 2, function(x) {(x- mean(x)) / sd(x)})
+    }
+    
+    if(cs) cen_scal <- center_scale
+    else cen_scal <- identity
+    
+    bins <- ceiling(frac * (mean(sapply(seq_cg, nrow)) - 1))
+    
+    shape_features <- list(
+      lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(1, 0, 0))),
+      lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(0, 1, 0))),
+      lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(0, 0, 1))),
+      lapply(seq_cg, by3roworientedangle4, v = c(1, 0, 0)),
+      lapply(seq_cg, by3roworientedangle4, v = c(0, 1, 0)),
+      lapply(seq_cg, by3roworientedangle4, v = c(0, 0, 1)),
+      lapply(seq_cg, orienteddistance1, v = c(1, 0, 0)),
+      lapply(seq_cg, orienteddistance1, v = c(0, 1, 0)),
+      lapply(seq_cg, orienteddistance1, v = c(0, 0, 1)),
+      lapply(seq_cg, by3roworienteddistance4, v = c(1, 0, 0)),
+      lapply(seq_cg, by3roworienteddistance4, v = c(0, 1, 0)),
+      lapply(seq_cg, by3roworienteddistance4, v = c(0, 0, 1))
+    ) |> 
+      feature_histograms(bin_count = bins) |> 
+      cen_scal() |> dist() |> as.matrix()
+    
+    coord_features <- 
+      coordinate_histograms(seq_cg,  bin_count = bins) |> 
+      split_coord_histograms(ncol(seq_cg)) |>
+      cen_scal() |> dist() |> as.matrix()
+    
   }
-  
-  if(cs) cen_scal <- center_scale
-  else cen_scal <- identity
-  
-  bins <- ceiling(frac * (mean(sapply(seq_cg, nrow)) - 1))
-  
-  shape_features <- list(
-    lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(1, 0, 0))),
-    lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(0, 1, 0))),
-    lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(0, 0, 1))),
-    lapply(seq_cg, by3roworientedangle4, v = c(1, 0, 0)),
-    lapply(seq_cg, by3roworientedangle4, v = c(0, 1, 0)),
-    lapply(seq_cg, by3roworientedangle4, v = c(0, 0, 1)),
-    lapply(seq_cg, orienteddistance1, v = c(1, 0, 0)),
-    lapply(seq_cg, orienteddistance1, v = c(0, 1, 0)),
-    lapply(seq_cg, orienteddistance1, v = c(0, 0, 1)),
-    lapply(seq_cg, by3roworienteddistance4, v = c(1, 0, 0)),
-    lapply(seq_cg, by3roworienteddistance4, v = c(0, 1, 0)),
-    lapply(seq_cg, by3roworienteddistance4, v = c(0, 0, 1))
-  ) |> 
-    feature_histograms(bin_count = bins) |> cen_scal() |> dist() |> as.matrix()
-  
-  coord_features <- 
-    coordinate_histograms(seq_cg,  bin_count = bins) |> 
-    split_coord_histograms(n) 
-
-  combine_distances(list(
-    (coordinate_histograms(seq_cg,  bin_count = bins) |> split_coord_histograms()) [[1]]|> cen_scal() |>  dist()|> as.matrix(),
-    (coordinate_histograms(seq_cg,  bin_count = bins) |> split_coord_histograms()) [[2]]|> cen_scal() |>  dist()|> as.matrix(),
-    (coordinate_histograms(seq_cg,  bin_count = bins) |> split_coord_histograms()) [[3]]|> cen_scal()|>  dist()|> as.matrix())
-  ) 
-}
-
-
 
 #=====================================================================
 # Function to implement volume intersection method
 #=====================================================================
 
-volume_intersection_tanimoto <- function(sequence_list, bandwidth = 0.003, hv_args = list(), vi_args = list()){
-  output <- matrix(1, nrow = length(sequence_list), ncol = length(sequence_list))
-  
-  cg4_list <- lapply(sequence_list, function(dna_seq) seq_to_hypercomplex_cg4(dna_seq) |> (\(x)(x[-1,-1]))())  
-  
-  hypervolumes1 <- 
-    lapply(seq_along(sequence_list), 
-           function(i) 
-             do.call(hypervolume_gaussian, 
-                     c(list(cg4_list[[i]], sd.count = 4,  
-                            kde.bandwidth = estimate_bandwidth(data=cg4_list[[i]], method = "fixed", value = bandwidth),
-                            name = names(sequence_list)[[i]]), hv_args)))
-  
-  pairwise_combn <- combn(1:length(sequence_list), 2, simplify = F)
-  
-  output <- 
-    lapply(pairwise_combn, 
-           function(i){
-             test1 <- hypervolumes1[[i[1]]]
-             test2 <- hypervolumes1[[i[2]]]
-             check <- do.call(hypervolume_set, c(list(hv1 = test1, hv2 = test2, check.memory = F), vi_args))
-             tanimoto <- check@HVList$Intersection@Volume / 
-               (test1@Volume + test2@Volume - check@HVList$Intersection@Volume)
-             data.frame(Var1 = c(i), 
-                        Var2 = c(rev(i)), 
-                        tanimoto = rep(tanimoto, 2))})
-  
-  output <- do.call(rbind, output)
-  output <- 
-    rbind(output, data.frame(Var1 = 1:length(sequence_list),
-                             Var2 = 1:length(sequence_list), 
-                             tanimoto = rep(1, length(sequence_list)))) |>
-    arrange(Var1, Var2)
-  output <- output |> 
-    pivot_wider(id_cols = Var1, names_from = Var2, values_from = tanimoto) |>
-    column_to_rownames("Var1") |> 
-    as.matrix()
-  
-  colnames(output) <- names(sequence_list)
-  rownames(output) <- names(sequence_list)
-  return(output)
-}
+volume_intersection_tanimoto <- 
+  function(sequence_list, bandwidth = 0.003, hv_args = list(), vi_args = list()){
+    output <- matrix(1, nrow = length(sequence_list), ncol = length(sequence_list))
+    
+    cg4_list <- lapply(sequence_list, function(dna_seq) seq_to_hypercomplex_cg4(dna_seq) |> (\(x)(x[-1,-1]))())  
+    
+    hypervolumes1 <- 
+      lapply(seq_along(sequence_list), 
+             function(i) 
+               do.call(hypervolume_gaussian, 
+                       c(list(cg4_list[[i]], sd.count = 4,  
+                              kde.bandwidth = estimate_bandwidth(data=cg4_list[[i]], method = "fixed", value = bandwidth),
+                              name = names(sequence_list)[[i]]), hv_args)))
+    
+    pairwise_combn <- combn(1:length(sequence_list), 2, simplify = F)
+    
+    output <- 
+      lapply(pairwise_combn, 
+             function(i){
+               test1 <- hypervolumes1[[i[1]]]
+               test2 <- hypervolumes1[[i[2]]]
+               check <- do.call(hypervolume_set, c(list(hv1 = test1, hv2 = test2, check.memory = F), vi_args))
+               tanimoto <- check@HVList$Intersection@Volume / 
+                 (test1@Volume + test2@Volume - check@HVList$Intersection@Volume)
+               data.frame(Var1 = c(i), 
+                          Var2 = c(rev(i)), 
+                          tanimoto = rep(tanimoto, 2))})
+    
+    output <- do.call(rbind, output)
+    output <- 
+      rbind(output, data.frame(Var1 = 1:length(sequence_list),
+                               Var2 = 1:length(sequence_list), 
+                               tanimoto = rep(1, length(sequence_list)))) |>
+      arrange(Var1, Var2)
+    output <- output |> 
+      pivot_wider(id_cols = Var1, names_from = Var2, values_from = tanimoto) |>
+      column_to_rownames("Var1") |> 
+      as.matrix()
+    
+    colnames(output) <- names(sequence_list)
+    rownames(output) <- names(sequence_list)
+    return(output)
+  }
 
 
 #=====================================================================
