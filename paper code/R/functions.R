@@ -171,7 +171,7 @@ remove_zv <- function(input_matrix, dim = 2){
 }
 
 feature_histograms <- 
-  function(features, bin_count, return_bins = F, return_bin_centers = F, drop_empty = F){
+  function(features, bin_count, return_bins = F, return_bin_centers = F){
     if(max(unlist(features)) == pi & min(unlist(features)) == -pi){
       # Histograms for angles may not need to be uniformly distributed. 
       # At least on one instance, which this is accounting for, the angles 
@@ -196,13 +196,6 @@ feature_histograms <-
         function(x) hist(x, breaks = features_breaks, plot = F)$counts
       )
     bin_centers <- zoo::rollmean(features_breaks, k = 2)
-    
-    # Remove bins where it's zero across all organisms
-    if(drop_empty){
-      tabulations.rowSums <- rowSums(features_tabulation)
-      features_tabulation <- features_tabulation[which(tabulations.rowSums != 0),,drop = F]
-      bin_centers <- bin_centers[which(tabulations.rowSums != 0)]
-    }
     
     output <- t(features_tabulation)
     if(return_bins) output <- list(output, features_breaks)
@@ -268,14 +261,7 @@ coordinate_histograms <-
                           function(x) hist_df_unpaired(x, breaks = hist_breaks))
     tabulations <- sapply(tabulations, unlist)
     colnames(tabulations) <- names(cgr_coords)
-    
-    # Remove bins where it's zero across all organisms 
-    if(drop_empty){
-      tabulations.rowSums <- rowSums(tabulations)
-      tabulations <- tabulations[which(tabulations.rowSums != 0),, drop = F]
-      bin_centers <- bin_centers[which(tabulations.rowSums != 0),, drop = F]
-    }
-    
+
     if(!return_bins)  return(t(tabulations)) 
     else return(list(t(tabulations), bin_centers))
   }
@@ -378,7 +364,9 @@ cgr_distance <- function(seq_cg, frac = 1/15, cs = T, ...){
   ) |> 
     feature_histograms(bin_count = bins) |> cen_scal() |> dist() |> as.matrix()
   
-  coord_features <- coordinate_histograms(seq_cg,  bin_count = bins) |> split_coord_histograms(n) 
+  coord_features <- 
+    coordinate_histograms(seq_cg,  bin_count = bins) |> 
+    split_coord_histograms(n) 
 
   combine_distances(list(
     (coordinate_histograms(seq_cg,  bin_count = bins) |> split_coord_histograms()) [[1]]|> cen_scal() |>  dist()|> as.matrix(),
