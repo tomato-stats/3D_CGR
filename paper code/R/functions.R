@@ -80,7 +80,7 @@ seq_to_hypercomplex_cg <-
   function(dna_seq, CGR_coord = coord1, df = F, axes = c("i", "j", "k")){ 
     # The input to this function is the DNA sequence and 
     # a table of the CGR coordinates to be used
-    if(ncol(CGR_coord) != length(axes)) 
+    if(ncol(CGR_coord) != (length(axes) + 1))
       stop("Number of axes needs to match that of the CGR_coord") 
     
     if(length(dna_seq) == 1) dna_seq <- str_split(toupper(dna_seq), "")[[1]]
@@ -90,7 +90,7 @@ seq_to_hypercomplex_cg <-
     
     # Chaos game 
     cg <- chaosGame(dna_seq, as.matrix(CGR_coord[,1:length(axes)]))
-    colnames(cg) <- axes_names
+    colnames(cg) <- axes
     return(cg)
   }
 
@@ -165,28 +165,28 @@ hist_paired <- function(list_df, bin_count, return_bins = F){
 
 
 feature_histograms <- 
-  function(dna_features, bin_count, return_bins = F, return_bin_centers = F, drop_empty = F){
-    if(max(unlist(dna_features)) == pi & min(unlist(dna_features)) == -pi){
+  function(features, bin_count, return_bins = F, return_bin_centers = F, drop_empty = F){
+    if(max(unlist(features)) == pi & min(unlist(features)) == -pi){
       # Histograms for angles may not need to be uniformly distributed. 
       # At least on one instance, which this is accounting for, the angles 
       # immediately adjacent to pi and -pi cannot be attained in the CGR. 
-      # This removes the unattainable anges next to pi and -pi out of the set of 
+      # This removes the unattainable angles next to pi and -pi out of the set of 
       # histogram breaks. 
       remove_pi <- function(x){
         new_x <- x[which(abs(pi - x) > 3e-08)]
         new_x <- new_x[which(abs(-pi - new_x) > 3e-08)]
         return(new_x)
       }
-      non_pi_features <- remove_pi(unlist(dna_features))
-      features_breaks <- seq(min(non_pi_features), max(non_pi_features), length.out = bin_count - 1)
+      not_pi <- remove_pi(unlist(features))
+      features_breaks <- seq(min(not_pi), max(not_pi), length.out = bin_count - 1)
       features_breaks <- c(-pi, features_breaks, pi)
     } else {
-      features_breaks <- seq(min(unlist(dna_features)), max(unlist(dna_features)), length.out = bin_count + 1)
+      features_breaks <- seq(min(unlist(features)), max(unlist(features)), length.out = bin_count + 1)
     }
     # Get histogram bin counts
     features_tabulation <-
       sapply(
-        dna_features,
+        features,
         function(x) hist(x, breaks = features_breaks, plot = F)$counts
       )
     bin_centers <- zoo::rollmean(features_breaks, k = 2)
@@ -494,4 +494,9 @@ volume_intersection_tanimoto <- function(sequence_list, bandwidth = 0.003, hv_ar
   rownames(output) <- names(sequence_list)
   return(output)
 }
+
+
+#=====================================================================
+# Plotting functions
+#=====================================================================
 
