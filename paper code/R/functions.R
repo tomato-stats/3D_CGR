@@ -83,7 +83,8 @@ seq_to_hypercomplex_cg <-
     if(ncol(CGR_coord) != (length(axes) + 1))
       stop("Number of axes needs to match that of the CGR_coord") 
     
-    if(length(dna_seq) == 1) dna_seq <- str_split(toupper(dna_seq), "")[[1]]
+    dna_seq <- toupper(dna_seq)
+    if(length(dna_seq) == 1) dna_seq <- str_split(dna_seq, "")[[1]]
     
     # Remove gaps
     dna_seq <- dna_seq[which(dna_seq != "-")]
@@ -95,7 +96,7 @@ seq_to_hypercomplex_cg <-
   }
 
 #=====================================================================
-# Functions for shape signature methods
+# Functions for assist in building histograms
 #=====================================================================
 
 sourceCpp("./R/features.cpp")
@@ -254,7 +255,7 @@ coordinate_histograms <-
     hist_ub <- apply(do.call(rbind, cgr_coords), 2, max)
     
     # Get histogram intervals for each axis
-    hist_breaks <- vector(mode = "list", length = ncol(cgr_coords))
+    hist_breaks <- vector(mode = "list", length = length(hist_lb))
     for(i in seq_along(hist_lb)){
       breaks_i <- unique(seq(hist_lb[i], hist_ub[i], length.out = bin_count + 1))
       if(length(breaks_i) < 2) breaks_i <- c(breaks_i, breaks_i + 1) 
@@ -279,98 +280,114 @@ coordinate_histograms <-
     else return(list(t(tabulations), bin_centers))
   }
 
-feature_signature <- function(dna_features, bin_count){
-  features_breaks <- seq(min(unlist(dna_features)), max(unlist(dna_features)),
-                         length.out = bin_count + 1)
+# feature_signature <- function(dna_features, bin_count){
+#   features_breaks <- seq(min(unlist(dna_features)), max(unlist(dna_features)),
+#                          length.out = bin_count + 1)
+# 
+#   # Get histogram bin counts
+#   features_tabulation <- sapply(dna_features,
+#                                 function(x) hist(x, breaks = features_breaks, plot = F)$counts)
+# 
+#   # Calculate z-scores within organisms
+#   features_tabulation <-
+#     preProcess(features_tabulation, method = c("center", "scale")) |>
+#     predict(features_tabulation)
+# 
+#   return(t(features_tabulation))
+# }
 
-  # Get histogram bin counts
-  features_tabulation <- sapply(dna_features,
-                                function(x) hist(x, breaks = features_breaks, plot = F)$counts)
+# #=====================================================================
+# # Function to implement coordinate signature method
+# #=====================================================================
+# 
+# coordinate_signature <- function(cgr_coords, bin_count){
+#   # Remove columns with constant data
+#   cgr_coords <- lapply(cgr_coords, 
+#                        function(x) preProcess(x, method = "zv") |>  predict(x))
+#   
+#   # Remove row of zeros if there is one 
+#   if(all(sapply(cgr_coords, function(x) all(x[1,]==0)))){
+#     cgr_coords <- lapply(cgr_coords, function(x) x[-1,])
+#   }
+#   
+#   # Get histogram bounds
+#   hist_lb <- apply(do.call(rbind, cgr_coords), 2, min)
+#   hist_ub <- apply(do.call(rbind, cgr_coords), 2, max)
+#   
+#   # Get histogram intervals for each axis
+#   hist_breaks <- list()
+#   for(i in seq_along(hist_lb)){
+#     insert_me <- unique(seq(hist_lb[i], hist_ub[i], length.out = bin_count + 1))
+#     if(length(insert_me) < 2) insert_me <- c(insert_me, insert_me + 1) 
+#     hist_breaks[[i]] <- insert_me
+#   }
+#   # Get histogram bin counts
+#   tabulations <- lapply(cgr_coords, 
+#                         function(x) hist_df_unpaired(x, breaks = hist_breaks))
+#   tabulations <- sapply(tabulations, unlist)
+#   colnames(tabulations) <- names(cgr_coords)
+#   
+#   # Calculate z-scores within organisms 
+#   tabulations <- preProcess(tabulations, method = c("center","scale")) |> 
+#     predict(tabulations)
+#   
+#   return(t(tabulations))
+# }
 
-  # Calculate z-scores within organisms
-  features_tabulation <-
-    preProcess(features_tabulation, method = c("center", "scale")) |>
-    predict(features_tabulation)
+#=====================================================================
+# Functions to calculate distance based on shape signature
+#=====================================================================
 
-  return(t(features_tabulation))
+split_coord_histograms <- function(histograms, num_axes){
+  histograms.ncol <- ncol(histograms)
+  starts <- (0:(num_axes - 1)) * (histograms.ncol / num_axes) + 1
+  ends <-  (1:num_axes) * (histograms.ncol / num_axes)
+  output <- lapply(1:num_axes, function(i) histograms[,starts[i]:ends[i]])
+  return(output) 
 }
 
 cgr_distance <- function(seq_cg, frac = 1/15, cs = T, ...){
+  
   combine_distances <- function(dist_list, p = 1){
     n <- length(dist_list)
     Reduce(`+`, lapply(dist_list, function(x){(1/n) * x^p}))^(1/p)
   }
-  center_scale <- function(hist_mat,force_pos  = F){
-    output <- 
-      if(force_pos) {
-        output <- apply(hist_mat, 2, function(x) {(x- mean(x)) / sd(x)})
-        output <- output + abs(min(output))
-      } else {
-        output <- apply(hist_mat, 2, function(x) {(x- mean(x)) / sd(x)})
-      }
-    return(output)
+  
+  center_scale <- function(hist_mat){
+    apply(hist_mat, 2, function(x) {(x- mean(x)) / sd(x)})
   }
+  
   if(cs) cen_scal <- center_scale
   else cen_scal <- identity
   
   bins <- ceiling(frac * (mean(sapply(seq_cg, nrow)) - 1))
   
+  shape_features <- list(
+    lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(1, 0, 0))),
+    lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(0, 1, 0))),
+    lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(0, 0, 1))),
+    lapply(seq_cg, by3roworientedangle4, v = c(1, 0, 0)),
+    lapply(seq_cg, by3roworientedangle4, v = c(0, 1, 0)),
+    lapply(seq_cg, by3roworientedangle4, v = c(0, 0, 1)),
+    lapply(seq_cg, orienteddistance1, v = c(1, 0, 0)),
+    lapply(seq_cg, orienteddistance1, v = c(0, 1, 0)),
+    lapply(seq_cg, orienteddistance1, v = c(0, 0, 1)),
+    lapply(seq_cg, by3roworienteddistance4, v = c(1, 0, 0)),
+    lapply(seq_cg, by3roworienteddistance4, v = c(0, 1, 0)),
+    lapply(seq_cg, by3roworienteddistance4, v = c(0, 0, 1))
+  ) |> 
+    feature_histograms(bin_count = bins) |> cen_scal() |> dist() |> as.matrix()
+  
+  coord_features <- coordinate_histograms(seq_cg,  bin_count = bins) |> split_coord_histograms(n) 
+
   combine_distances(list(
-    feature_histograms(lapply(seq_cg, function(x) orientedangle1(x[-1,], v =c(1, 0, 0))), bin_count = bins) |> cen_scal() |> dist() |> as.matrix(),
-    feature_histograms(lapply(seq_cg, function(x) orientedangle1(x[-1,], v =c(0, 1, 0))), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
-    feature_histograms(lapply(seq_cg, function(x) orientedangle1(x[-1,], v =c(0, 0, 1))), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
-    feature_histograms(lapply(seq_cg, by3roworientedangle4, v =c(1, 0, 0)), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
-    feature_histograms(lapply(seq_cg, by3roworientedangle4, v =c(0, 1, 0)), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
-    feature_histograms(lapply(seq_cg, by3roworientedangle4, v =c(0, 0, 1)), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
-    feature_histograms(lapply(seq_cg, orienteddistance1, v =c(1, 0, 0)), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
-    feature_histograms(lapply(seq_cg, orienteddistance1, v =c(0, 1, 0)), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
-    feature_histograms(lapply(seq_cg, orienteddistance1, v =c(0, 0, 1)), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
-    feature_histograms(lapply(seq_cg, by3roworienteddistance4, v =c(1, 0, 0)), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
-    feature_histograms(lapply(seq_cg, by3roworienteddistance4, v =c(0, 1, 0)), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
-    feature_histograms(lapply(seq_cg, by3roworienteddistance4, v =c(0, 0, 1)), bin_count = bins) |> cen_scal() |> dist()|> as.matrix(),
     (coordinate_histograms(seq_cg,  bin_count = bins) |> split_coord_histograms()) [[1]]|> cen_scal() |>  dist()|> as.matrix(),
     (coordinate_histograms(seq_cg,  bin_count = bins) |> split_coord_histograms()) [[2]]|> cen_scal() |>  dist()|> as.matrix(),
     (coordinate_histograms(seq_cg,  bin_count = bins) |> split_coord_histograms()) [[3]]|> cen_scal()|>  dist()|> as.matrix())
   ) 
 }
 
-#=====================================================================
-# Function to implement coordinate signature method
-#=====================================================================
 
-coordinate_signature <- function(cgr_coords, bin_count){
-  # Remove columns with constant data
-  cgr_coords <- lapply(cgr_coords, 
-                       function(x) preProcess(x, method = "zv") |>  predict(x))
-  
-  # Remove row of zeros if there is one 
-  if(all(sapply(cgr_coords, function(x) all(x[1,]==0)))){
-    cgr_coords <- lapply(cgr_coords, function(x) x[-1,])
-  }
-  
-  # Get histogram bounds
-  hist_lb <- apply(do.call(rbind, cgr_coords), 2, min)
-  hist_ub <- apply(do.call(rbind, cgr_coords), 2, max)
-  
-  # Get histogram intervals for each axis
-  hist_breaks <- list()
-  for(i in seq_along(hist_lb)){
-    insert_me <- unique(seq(hist_lb[i], hist_ub[i], length.out = bin_count + 1))
-    if(length(insert_me) < 2) insert_me <- c(insert_me, insert_me + 1) 
-    hist_breaks[[i]] <- insert_me
-  }
-  # Get histogram bin counts
-  tabulations <- lapply(cgr_coords, 
-                        function(x) hist_df_unpaired(x, breaks = hist_breaks))
-  tabulations <- sapply(tabulations, unlist)
-  colnames(tabulations) <- names(cgr_coords)
-  
-  # Calculate z-scores within organisms 
-  tabulations <- preProcess(tabulations, method = c("center","scale")) |> 
-    predict(tabulations)
-  
-  return(t(tabulations))
-}
 
 #=====================================================================
 # Function to implement volume intersection method
