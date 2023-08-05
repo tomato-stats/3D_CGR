@@ -1,9 +1,9 @@
-library(haplotypes)
+library(ape)
 
 # Simulated sequences
 
-sim_fas <- read.fas("./data/sim.fas")
-sim_fas <- apply(sim_fas@sequence, 1, paste, collapse="")
+sim_fas <- read.FASTA("./data/sim.fas") |> as.character()
+sim_fas <- lapply(sim_fas, paste, collapse="")
 sim_fas <- gsub("-", "", sim_fas)
 names(sim_fas) <- c("A", "B")
 

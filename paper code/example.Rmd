@@ -15,21 +15,19 @@ knitr::opts_chunk$set(echo = TRUE)
 #   assumes "3D_CGR/paper code" is the current working directory
 #=====================================================================
 
+# Some packages not loaded. Those that are not loaded, but which you will need to run the code, are:
+# msa from Bioconductor
+
 source("./data/sequences.R")
 source("./R/functions.R")
 
 library(reshape2)
 library(msa) # From Bioconductor
-library(seqinr)
-library(plotly)
-library(stringr)
-library(magrittr)
+library(ape)
+library(phangorn)
 library(tidyverse)
-library(caret)
 library(ggplot2)
-
-# Other packages not loaded, but you will need to run the code are: 
-# zoo, purrr, reshape2
+library(ggdendro)
 
 set.seed(0)
 ```
@@ -49,7 +47,7 @@ set.seed(0)
 # Function to align the sequences
 
 clustal_omega <- function(dna_seq, outgroup = NULL){
-  msa(dna_seq, type = "dna", method = "ClustalOmega") |> 
+  msa(dna_seq, type = "dna", method = "ClustalOmega", order = "input") |> 
     msaConvert(type = "ape::DNAbin") |> ape::dist.gene() |> 
     (\(x){x / max(x)})()
 }
@@ -74,10 +72,11 @@ hm <- function(distances, ...){
 }
 
 
-clustal_omega(beta_seq) |> ape::bionj() |> ape::root("gallus") |> plot()
 clustal_omega(beta_seq) |> hm()
-clustal_omega(nadh) |> ape::bionj() |> ape::root("Saimiri sciureus") |> plot()
+clustal_omega(beta_seq) |> ape::bionj() |> ape::root("gallus") |> plot()
+clustal_omega(beta_seq) |> ape::bionj() |> ape::root("gallus") |> plot()
 clustal_omega(nadh) |> hm(trans = "exp") # transformation of color to facilitate visualization
+clustal_omega(nadh) |> ape::bionj() |> ape::root("Saimiri sciureus") |> plot()
 clustal_omega(sim_fas)
 
 
@@ -89,11 +88,23 @@ clustal_omega(sim_fas)
 # Shape signature results 
 #=====================================================================
 
-beta_cg <- lapply(beta_seq, seq_to_hypercomplex_cg4)  
-nadh_cg <- lapply(nadh, seq_to_hypercomplex_cg4)  
-# sim_cg <- lapply(, seq_to_hypercomplex_cg4)  
-  
-cgr_distance(beta_cg)
+beta_cg <- lapply(beta_seq, seq_to_hypercomplex_cg)  
+nadh_cg <- lapply(nadh, seq_to_hypercomplex_cg)  
+sim_cg <- lapply(sim_fas, seq_to_hypercomplex_cg) 
+
+cgr_distance(beta_cg, frac = 1) |> hm()
+cgr_distance(beta_cg, frac = 1/15) |> hm()
+cgr_distance(beta_cg, frac = 1) |> ape::bionj() |> ape::root("gallus") |> plot()
+cgr_distance(beta_cg, frac = 1) |> ape::bionj() |> ape::root("gallus") |> plot()
+cgr_distance(beta_cg, frac = 1/15) |> ape::bionj() |> ape::root("gallus") |> plot()
+
+cgr_distance(nadh_cg, frac = 1) |> hm()
+cgr_distance(nadh_cg, frac = 1/15) |> hm()
+cgr_distance(nadh_cg, frac = 1) |> ape::bionj() |> plot()
+cgr_distance(nadh_cg, frac = 1/15) |> ape::bionj() |> plot()
+
+
+cgr_distance(sim_cg) |> hm()
 
 
 
@@ -104,26 +115,43 @@ cgr_distance(beta_cg)
 #This part of the code takes the longest to run. 
 # Reduce samples.per.point and num.points.max to improve runtime or eliminate
 # the parameters altogether to use default values of the hypervolume package
-volume_intersection_tanimoto(beta_seq, 
-                             hv_args = list(samples.per.point = 5000), 
-                             vi_args = list(num.points.max = 150000)) %>% 
-  print(plot(hclust(as.dist(1-.), method = "complete" ), 
-           axes = F, xlab = NULL, ylab = NULL, main = NULL, 
-           sub = NULl, ann = F, cex = .75))
+volume_intersection_tanimoto(
+  beta_seq, 
+  hv_args = list(samples.per.point = 5000), 
+  vi_args = list(num.points.max = 150000)
+) |> 
+  print(
+    plot(
+      hclust(as.dist(1-.), method = "complete" ), 
+      axes = F, xlab = NULL, ylab = NULL, main = NULL, 
+      sub = NULl, ann = F, cex = .75
+    )
+  )
 
-volume_intersection_tanimoto(nadh, 
-                             hv_args = list(samples.per.point = 5000), 
-                             vi_args = list(num.points.max = 150000)) %>% 
-  print(plot(hclust(as.dist(1-.), method = "complete" ), 
-             axes = F, xlab = NULL, ylab = NULL, main = NULL, 
-             sub = NULl, ann = F, cex = .75))
+volume_intersection_tanimoto(
+  nadh, 
+  hv_args = list(samples.per.point = 5000), 
+  vi_args = list(num.points.max = 150000)
+) |>  
+  print(
+    plot(
+      hclust(as.dist(1-.), method = "complete" ), 
+      axes = F, xlab = NULL, ylab = NULL, main = NULL, 
+      sub = NULl, ann = F, cex = .75
+    )
+  )
 
-volume_intersection_tanimoto(sim_fas, 
-                             hv_args = list(samples.per.point = 5000), 
-                             vi_args = list(num.points.max = 150000)) %>% 
-  print(plot(hclust(as.dist(1-.), method = "complete" ), 
-             axes = F, xlab = NULL, ylab = NULL, main = NULL, 
-             sub = NULl, ann = F, cex = .75))
+volume_intersection_tanimoto(
+  sim_fas, 
+  hv_args = list(samples.per.point = 5000), 
+  vi_args = list(num.points.max = 150000)) |> 
+  print(
+    plot(
+      hclust(as.dist(1-.), method = "complete" ), 
+      axes = F, xlab = NULL, ylab = NULL, main = NULL, 
+      sub = NULl, ann = F, cex = .75
+    )
+  )
 
 
 #=====================================================================

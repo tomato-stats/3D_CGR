@@ -4,8 +4,10 @@
 #####################################################################
 
 library(stringr)
+library(zoo)
 library(hypervolume)
 library(Rcpp)
+library(parallel)
 
 #=====================================================================
 # Convert a DNA sequence to 3D CGR 
@@ -337,9 +339,12 @@ split_coord_histograms <-
   }
 
 cgr_distance <- 
-  function(seq_cg, frac = 1/15, cs = T, ...){
+  function(seq_cg, frac = 1/15, cs = T, power = 1){
     
-    combine_distances <- function(dist_list, p = 1){
+    combine_distances <- function(dist_list, p){
+      # Power mean: arithmetic p = 1, geometric p = 0, harmonic p = -1, quadratic p = 2
+      # As p -> infinity, power mean -> max; 
+      # as p -> -infinity, power mean -> min. 
       n <- length(dist_list)
       Reduce(`+`, lapply(dist_list, function(x){(1/n) * x^p}))^(1/p)
     }
@@ -367,22 +372,27 @@ cgr_distance <-
       lapply(seq_cg, by3roworienteddistance4, v = c(0, 1, 0)),
       lapply(seq_cg, by3roworienteddistance4, v = c(0, 0, 1))
     ) |> 
-      feature_histograms(bin_count = bins) |> 
-      cen_scal() |> dist() |> as.matrix()
+      lapply(feature_histograms, bin_count = bins) |> 
+      lapply(function(x) x |> cen_scal() |> dist() |> as.matrix())
     
     coord_features <- 
       coordinate_histograms(seq_cg,  bin_count = bins) |> 
-      split_coord_histograms(ncol(seq_cg)) |>
-      cen_scal() |> dist() |> as.matrix()
+      split_coord_histograms(ncol(seq_cg[[1]])) |>
+      lapply(function(x) x |> cen_scal() |> dist() |> as.matrix())
     
+    combine_distances(
+      c(shape_features, coord_features), 
+      p = power
+    )
   }
 
 #=====================================================================
 # Function to implement volume intersection method
 #=====================================================================
 
-volume_intersection_tanimoto <- 
+vol_int_tan <- 
   function(sequence_list, bandwidth = 0.003, hv_args = list(), vi_args = list()){
+    # This implementation does not use parallelization and is not recommended 
     output <- matrix(1, nrow = length(sequence_list), ncol = length(sequence_list))
     
     cg4_list <- lapply(sequence_list, function(dna_seq) seq_to_hypercomplex_cg4(dna_seq) |> (\(x)(x[-1,-1]))())  
@@ -425,6 +435,79 @@ volume_intersection_tanimoto <-
     return(output)
   }
 
+
+volume_intersection_tanimoto <- 
+  function(sequence_list, bandwidth = 0.003, hv_args = list(), vi_args = list()){
+    output <- matrix(1, nrow = length(sequence_list), ncol = length(sequence_list))
+    
+    cl <- makeCluster(detectCores() - 1)
+    clusterExport(
+      cl, 
+      c("str_split", 
+        "seq_to_hypercomplex_cg4", "seq_to_hypercomplex_cg4_nr"), 
+      envir = environment()
+    )
+    
+    cg4_list <- 
+      parLapply(
+        cl, 
+        sequence_list, 
+        function(dna_seq) seq_to_hypercomplex_cg4_nr(dna_seq) |> (\(x)(x[-1,-1]))()
+      )  
+    
+    ## set up each worker.
+    clusterEvalQ(cl, {library(hypervolume)})
+    
+    clusterExport(
+      cl, 
+      c("sequence_list", "cg4_list", "bandwidth"),
+      envir = environment()
+    )
+    
+    hypervolumes1 <- 
+      parLapply(
+        cl, 
+        seq_along(sequence_list), 
+        function(i) 
+          do.call(hypervolume_gaussian, 
+                  c(list(cg4_list[[i]], sd.count = 4,  
+                         kde.bandwidth = estimate_bandwidth(data=cg4_list[[i]], method = "fixed", value = bandwidth),
+                         name = names(sequence_list)[[i]]), hv_args)
+          )
+      )
+    
+    gc()
+    pairwise_combn <- combn(1:length(sequence_list), 2, simplify = F)
+    
+    output <-
+      parLapply(
+        cl, 
+        pairwise_combn, 
+        function(i){
+          test1 <- hypervolumes1[[i[1]]]
+          test2 <- hypervolumes1[[i[2]]]
+          check <- do.call(hypervolume_set, c(list(hv1 = test1, hv2 = test2, check.memory = F), vi_args))
+          tanimoto <- check@HVList$Intersection@Volume / 
+            (test1@Volume + test2@Volume - check@HVList$Intersection@Volume)
+          data.frame(Var1 = c(i), Var2 = c(rev(i)), tanimoto = rep(tanimoto, 2))
+        }
+      )
+    
+    stopCluster(cl)
+    output <- do.call(rbind, output)
+    output <- rbind(output, data.frame(Var1 = 1:length(sequence_list),
+                                       Var2 = 1:length(sequence_list), 
+                                       tanimoto = rep(1, length(sequence_list)))) |>
+      arrange(Var1, Var2)
+    output <- output |> 
+      pivot_wider(id_cols = Var1, names_from = Var2, values_from = tanimoto) |>
+      column_to_rownames("Var1") |> 
+      as.matrix()
+    
+    colnames(output) <- names(sequence_list)
+    rownames(output) <- names(sequence_list)
+    return(output)
+  }
 
 #=====================================================================
 # Plotting functions
