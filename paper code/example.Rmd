@@ -15,9 +15,6 @@ knitr::opts_chunk$set(echo = TRUE)
 #   assumes "3D_CGR/paper code" is the current working directory
 #=====================================================================
 
-# Some packages not loaded. Those that are not loaded, but which you will need to run the code, are:
-# msa from Bioconductor
-
 source("./data/sequences.R")
 source("./R/functions.R")
 
@@ -29,7 +26,6 @@ library(tidyverse)
 library(ggplot2)
 library(ggdendro)
 
-set.seed(0)
 ```
 
 ```{r}
@@ -48,8 +44,7 @@ set.seed(0)
 
 clustal_omega <- function(dna_seq, outgroup = NULL){
   msa(dna_seq, type = "dna", method = "ClustalOmega", order = "input") |> 
-    msaConvert(type = "ape::DNAbin") |> ape::dist.gene() |> 
-    (\(x){x / max(x)})()
+    msaConvert(type = "ape::DNAbin") |> ape::dist.gene() 
 }
 
 # Heatmap function
@@ -73,12 +68,14 @@ hm <- function(distances, ...){
 
 
 clustal_omega(beta_seq) |> hm()
-clustal_omega(beta_seq) |> ape::bionj() |> ape::root("gallus") |> plot()
-clustal_omega(beta_seq) |> ape::bionj() |> ape::root("gallus") |> plot()
-clustal_omega(nadh) |> hm(trans = "exp") # transformation of color to facilitate visualization
-clustal_omega(nadh) |> ape::bionj() |> ape::root("Saimiri sciureus") |> plot()
-clustal_omega(sim_fas)
+clustal_omega(beta_seq) |> bionj() |> root("gallus") |> plot()
+clustal_omega(beta_seq) |> fastme.bal() |> root("gallus") |> plot()
 
+clustal_omega(nadh) |> hm(trans = "exp") # transformation of color to facilitate visualization
+clustal_omega(nadh) |> bionj() |> root("Saimiri sciureus") |> plot()
+clustal_omega(nadh) |> fastme.bal() |> root("Saimiri sciureus") |> plot()
+
+clustal_omega(sim_fas)
 
 ```
 
@@ -93,28 +90,37 @@ nadh_cg <- lapply(nadh, seq_to_hypercomplex_cg)
 sim_cg <- lapply(sim_fas, seq_to_hypercomplex_cg) 
 
 cgr_distance(beta_cg, frac = 1) |> hm()
+cgr_distance(beta_cg, frac = 1) |> bionj() |> ape::root("gallus") |> plot()
+cgr_distance(beta_cg, frac = 1) |> fastme.bal() |> root("gallus") |> plot() 
+
 cgr_distance(beta_cg, frac = 1/15) |> hm()
-cgr_distance(beta_cg, frac = 1) |> ape::bionj() |> ape::root("gallus") |> plot()
-cgr_distance(beta_cg, frac = 1) |> ape::bionj() |> ape::root("gallus") |> plot()
-cgr_distance(beta_cg, frac = 1/15) |> ape::bionj() |> ape::root("gallus") |> plot()
+cgr_distance(beta_cg, frac = 1/15) |> bionj() |> ape::root("gallus") |> plot()
+cgr_distance(beta_cg, frac = 1/15) |> fastme.bal() |> root("gallus") |> plot() 
 
 cgr_distance(nadh_cg, frac = 1) |> hm()
-cgr_distance(nadh_cg, frac = 1/15) |> hm()
-cgr_distance(nadh_cg, frac = 1) |> ape::bionj() |> plot()
-cgr_distance(nadh_cg, frac = 1/15) |> ape::bionj() |> plot()
+cgr_distance(nadh_cg, frac = 1) |> bionj() |> root("Saimiri sciureus") |> plot()
+cgr_distance(nadh_cg, frac = 1) |> fastme.bal() |> root("Saimiri sciureus") |> plot()
 
+cgr_distance(nadh_cg, frac = 1/15) |> hm()
+cgr_distance(nadh_cg, frac = 1/15) |> bionj() |> root("Saimiri sciureus") |> plot()
+cgr_distance(nadh_cg, frac = 1/15) |> fastme.bal() |> root("Saimiri sciureus") |> plot()
 
 cgr_distance(sim_cg) |> hm()
 
+```
 
+```{r, eval = F}
 
 #=====================================================================
 # Volume intersection method results 
 #=====================================================================
 
+set.seed(0)
+
 #This part of the code takes the longest to run. 
 # Reduce samples.per.point and num.points.max to improve runtime or eliminate
 # the parameters altogether to use default values of the hypervolume package
+
 volume_intersection_tanimoto(
   beta_seq, 
   hv_args = list(samples.per.point = 5000), 
@@ -153,6 +159,9 @@ volume_intersection_tanimoto(
     )
   )
 
+```
+
+```{r}
 
 #=====================================================================
 # Demonstrative plots in the paper
