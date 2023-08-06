@@ -13,8 +13,8 @@ knitr::opts_chunk$set(echo = TRUE)
 #####################################################################
 # Comparing the effect of mutation accumulation between
 # substitution and deletion on the distance from the parent sequence
-# This code is takes a while to run.  You can shorten the run time a bit
-# by decreasing the number of bin counts/bandwidths checked.
+# You can shorten the run time a bit by decreasing the number 
+# of bin counts/bandwidths checked and/or simulations
 # By: Stephanie Young <syoung2@sdsu.edu> <syoung49@its.jnj.com>
 #####################################################################
 
@@ -40,25 +40,80 @@ library(ggdendro)
 
 ```
 
+```{r}
+ 
+#=====================================================================
+# Mutation functions
+#=====================================================================
+
+# Code to perform substitution mutation on a single nucleotide
+mtte <- function(nucleotide){
+  sample(setdiff(c("A", "T", "C", "G"), nucleotide), 1)
+}
+mtte.V <- Vectorize(mtte, "nucleotide")
+
+
+insert_at <- function(a, pos, insert){
+  # Give the function a vector of the sequence of nucleotides and it will insert 
+  # new nucleotides (insert) at every position (pos)
+  if(min(pos) == 1){
+    result <- vector("list",2*length(pos))
+    result[c(FALSE,TRUE)] <- split(a, cumsum(seq_along(a) %in% (pos)))
+    result[c(TRUE,FALSE)] <- insert[order(pos)]
+  } else{
+    result <- vector("list",2*length(pos)+1)
+    result[c(TRUE, FALSE)] <- split(a, cumsum(seq_along(a) %in% (pos)))
+    result[c(FALSE, TRUE)] <- insert[order(pos)]
+  }
+  unlist(result)
+}
+
+sample_interval <- function(x, size, interval_length){
+  # Sample interval_length contiguous/adjacent elements from x size times.
+  # Does not allow overlapping of sampled intervals
+  # Does not allow repeat sample of the same interval
+  indices <- 1:(length(x) - interval_length + 1)
+  sampled_indices <- sample(indices, 1)
+  sampled_indices <- sampled_indices : (sampled_indices + interval_length - 1)
+  times <- 1
+  while(times < size){
+    remaining_viable_indices <- setdiff(1:length(x), sampled_indices)
+    check <- lead(remaining_viable_indices, interval_length - 1) - remaining_viable_indices
+    remaining_viable_indices <- remaining_viable_indices[!(is.na(check) | check >= interval_length)]
+    if(length(remaining_viable_indices) > 0){
+      next_sample <- sample(remaining_viable_indices, 1)
+      next_sample <- next_sample : (next_sample + interval_length - 1)
+      sampled_indices <- c(sampled_indices, next_sample)
+      times <- times + 1
+    } else{
+      print("Ran out of nucleotides to sample")
+      times <- size
+    }
+  }
+  return(sampled_indices)
+}
+
+```
+
 # Single simulation of mutation effects over time 
 
-```{r}
+```{r} 
 
+#=====================================================================
+# Mutation parameter selection. 
+#=====================================================================
 set.seed(0)
 
 parent_dna <- beta_seq[[2]]
 
-# Code to mutate a single nucleotide
-mtte <- function(nucleotide){
-  sample(setdiff(c("A", "T", "C", "G"), nucleotide), 1)
-}
-
-mtte.Vectorize <- Vectorize(mtte, "nucleotide")
-
-# Select mutation locations
-
 intervals <- 2
 num_mutations <- seq(0, 76, by = intervals)
+
+```
+
+```{r}
+
+# Select mutation locations
 
 mutation_locations <- c()
 for(i in seq_along(num_mutations)[-1]){
@@ -81,7 +136,7 @@ for(i in seq_along(num_mutations)[-1]){
   previous_sub <- str_split(agg_sub_fas[i - 1], "")[[1]]
   sub_seq <- previous_sub
   sub_seq[mutation_locations[(1:intervals) + (i - 2) * intervals]] <- 
-    mtte.Vectorize(previous_sub[mutation_locations[(1:intervals) + (i - 2) * intervals]])
+    mtte.V(previous_sub[mutation_locations[(1:intervals) + (i - 2) * intervals]])
   agg_sub_fas <- c(agg_sub_fas, paste(sub_seq, collapse = ""))
   names(agg_sub_fas)[i] <- paste("Substitutions =", num_mutations[i])
 }
@@ -140,7 +195,7 @@ full_join(
   suffix=c(".S", ".D")
 ) |>
   ggplot() + 
-  geom_point(aes(x=value.S, y=value.D, col = `Mutation count`), alpha = .75, size = 3) + 
+  geom_point(aes(x=value.S, y=value.D, col = `Mutation percent`), alpha = .75, size = 3) + 
   theme_minimal() +  
   geom_abline(slope = 1, intercept = 0, lty = "dashed") +  
   geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
@@ -198,7 +253,7 @@ full_join(
   suffix=c(".S", ".D")
 ) |>
   ggplot() + 
-  geom_point(aes(x=value.S, y=value.D, col = `Mutation count`), alpha = .75, size = 3) + 
+  geom_point(aes(x=value.S, y=value.D, col = `Mutation percent`), alpha = .75, size = 3) + 
   theme_minimal() +  
   geom_abline(slope = 1, intercept = 0, lty = "dashed") +  
   geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
@@ -210,75 +265,9 @@ full_join(
 
 ```
 
+# Many simulations of mutation effects over time 
+
 ```{r}
-
-# Code to perform substitution mutation on a single nucleotide
-mtte <- function(nucleotide){
-  sample(setdiff(c("A", "T", "C", "G"), nucleotide), 1)
-}
-mtte.V <- Vectorize(mtte, "nucleotide")
-
-insert_at <- function(a, pos, insert){
-  # Give the function a vector of the sequence of nucleotides and it will insert 
-  # new nucleotides (insert) at every position (pos)
-  if(min(pos) == 1){
-    result <- vector("list",2*length(pos))
-    result[c(FALSE,TRUE)] <- split(a, cumsum(seq_along(a) %in% (pos)))
-    result[c(TRUE,FALSE)] <- insert[order(pos)]
-  } else{
-    result <- vector("list",2*length(pos)+1)
-    result[c(TRUE, FALSE)] <- split(a, cumsum(seq_along(a) %in% (pos)))
-    result[c(FALSE, TRUE)] <- insert[order(pos)]
-  }
-  unlist(result)
-}
-
-
-  # The first generation sequences
-  del_line <- c(`Deletions = 0` = orig_seq)
-  sub_line <- c(`Substitutions = 0` = orig_seq)
-  ins_line <- c(`Insertions = 0` = orig_seq)
-  del_seq <- sub_seq <- ins_seq <- orig_seq <- str_split(orig_seq, "")[[1]]
-
-  if(lineage){
-    # Mutations in a lineage are aggregative
-    # Under this case, (num_)mutations must increase 
-    if(any(diff(num_mutations) < 0)) print("Incorrect use of function.")
-    intervals <- num_mutations - c(0, lag(num_mutations)[-1])
-    if(is.null(mutation_locations)) 
-      mutation_locations <- sample_interval(1:length(orig_seq), last(num_mutations), interval_size)
-    
-    # Some last generation sequences
-    sub_line.last <- sub_seq
-    sub_line.last[mutation_locations] <- mtte(sub_seq[mutation_locations])
-    ins_line.last <- insert_at(
-      orig_seq, 
-      mutation_locations[seq(1, length(mutation_locations), by = interval_size)], 
-      lapply(seq_along(num_mutations), function(x) sample(c("A", "C", "G", "T"), interval_size, replace = T))
-    )
-    full_ins_helper <- insert_at(
-      orig_seq, 
-      mutation_locations[seq(1, length(mutation_locations), by = interval_size)], 
-      lapply(1:last(num_mutations), function(x) rep(x, each = interval_size))
-    )
-    
-    for(i in seq_along(num_mutations)){
-      # Deletion mutations
-      del_seq[mutation_locations[1:(interval_size * num_mutations[i])]] <- "-"
-      del_line <- c(del_line, paste(del_seq, collapse = ""))
-      names(del_line)[i+1] <- paste("Deletions =", num_mutations[i], "; Length =", interval_size)
-
-      # Insertion mutations
-      ins_seq <- ins_line.last[full_ins_helper %in% c("A", "C", "G", "T", 1:(num_mutations[i]))]
-      ins_line <- c(ins_line, paste(ins_seq, collapse = ""))
-      names(ins_line)[i+1] <- paste("Insertions =", num_mutations[i], "; Length =", interval_size)
-      
-      # Substitution mutations
-      sub_seq[mutation_locations[1:(interval_size * num_mutations[i])]] <- sub_line.last[mutation_locations[1:(interval_size * num_mutations[i])]]
-      sub_line <- c(sub_line, paste(sub_seq, collapse = ""))
-      names(sub_line)[i+1] <- paste("Substitutions =", num_mutations[i], "; Length =", interval_size)
-    }
-    print(mutation_locations)
 
 #=====================================================================
 # Mutation parameter selection. 
@@ -286,42 +275,109 @@ insert_at <- function(a, pos, insert){
 
 set.seed(0)
 
+orig_seq <- str_split(beta_seq[[2]], "")[[1]]
+
+num_mutations <- seq(1, 76, by = 1)
+
 nsims <- 100
-parent_dna <- beta_seq[[2]]
-
-
-intervals <- 2
-num_mutations <- c(seq(0, nchar(parent_dna) - 5, by = intervals)) 
-
 
 ```
 
 ```{r}
 
-agg_sub_fas <- c(`Substitutions = 0` = parent_dna)
-counter <- 2
-
-for(outer in 1:nsims){
-  set.seed(outer)
+simulations <- vector(mode = "list", length = nsims)
+for(s in 1:nsims){
+  i_len <- 1
   
-  # Mutation locations
-  mutation_locations <- c()
-  for(i in seq_along(num_mutations)[-1]){
-    new_locations <- sample(setdiff(1:nchar(parent_dna), mutation_locations), intervals)
-    mutation_locations <- c(mutation_locations, c(new_locations))
-  }
+  # Lists to store each generation
+  del_line <- sub_line <- ins_line <- dup_line <- 
+    vector(length = length(num_mutations))
+  del_seq <- sub_seq <- ins_seq <- orig_seq 
   
-  for(i in seq_along(num_mutations)[-1]){
+  mutation_locations <- sample_interval(1:length(orig_seq), last(num_mutations), i_len)
+ 
+  # Some last generation sequences
+  sub_line.last <- orig_seq
+  sub_line.last[mutation_locations] <- mtte(sub_seq[mutation_locations])
+  
+  ins_line.last <- insert_at(
+    orig_seq, 
+    mutation_locations[seq(1, length(mutation_locations), by = i_len)], 
+    lapply(seq_along(num_mutations), function(x) sample(c("A", "C", "G", "T"), i_len, replace = T))
+  )
+  full_ins_helper <- insert_at(
+    orig_seq, 
+    mutation_locations[seq(1, length(mutation_locations), by = i_len)], 
+    lapply(1:last(num_mutations), function(x) rep(x, each = i_len))
+  )
+  
+  dup_line.last <- insert_at(
+    orig_seq, 
+    mutation_locations[seq(1, length(mutation_locations), by = i_len)], 
+    mutation_locations[seq(1, length(mutation_locations), by = i_len)] |> as.list()
+  )
+  
+  for(i in seq_along(num_mutations)){
+    # Deletion mutations
+    del_seq[mutation_locations[1:(i_len * num_mutations[i])]] <- "-"
+    del_line[i] <- paste(del_seq, collapse = "")
+    names(del_line)[i] <- paste("Deletions =", num_mutations[i], "; Length =", i_len, "; Simulation", s)
+    
+    # Insertion mutations
+    ins_seq <- ins_line.last[full_ins_helper %in% c("A", "C", "G", "T", 1:(num_mutations[i]))]
+    ins_line[i] <- paste(ins_seq, collapse = "")
+    names(ins_line)[i] <- paste("Insertions =", num_mutations[i], "; Length =", i_len, "; Simulation", s)
+    
+    # Duplication mutations
+    dup_seq <- dup_line.last[full_ins_helper %in% c("A", "C", "G", "T", 1:(num_mutations[i]))]
+    dup_line[i] <- paste(ins_seq, collapse = "")
+    names(dup_line)[i] <- paste("Duplications =", num_mutations[i], "; Length =", i_len, "; Simulation", s)
+    
     # Substitution mutations
-    if(i == 2) previous_sub <- str_split(agg_sub_fas[1], "")[[1]]
-    else previous_sub <- str_split(agg_sub_fas[counter - 1], "")[[1]]
-    sub_seq <- previous_sub
-    sub_seq[mutation_locations[(1:intervals) + (i - 2) * intervals]] <- 
-      mtte.Vectorize(previous_sub[mutation_locations[(1:intervals) + (i - 2) * intervals]])
-    agg_sub_fas <- c(agg_sub_fas, paste(sub_seq, collapse = ""))
-    names(agg_sub_fas)[counter] <- paste("Substitutions = ", num_mutations[i], "; Simulation ", outer, sep = "")
-    counter <- counter + 1
+    sub_seq[mutation_locations[1:(i_len * num_mutations[i])]] <- sub_line.last[mutation_locations[1:(i_len * num_mutations[i])]]
+    sub_line[i] <- paste(sub_seq, collapse = "")
+    names(sub_line)[i] <- paste("Substitutions =", num_mutations[i], "; Length =", i_len, "; Simulation", s)
   }
+  
+  simulations[[s]] <- 
+    c(`Parent` = paste(orig_seq, collapse = ""), sub_line, gsub("-","",del_line), ins_line, dup_line)
 }
+
+```
+
+## Clustal Omega + P-distance results 
+
+```{r}
+
+clustal_output <- 
+  lapply(
+    simulations,
+    function(x){
+      msa(x, type = "dna", method = "ClustalOmega") |> 
+        msaConvert(type = "ape::DNAbin") |> 
+        ape::dist.gene() |> as.matrix() |> melt() |>
+        filter(Var1 == "Parent" & Var2 != "Parent") |> 
+        mutate(
+          `Mutation count` = as.numeric(sapply(str_split(Var2, " "), function(x) x[3])),
+          `Mutation percent` = `Mutation count`/length(orig_seq),
+          `Mutation type` = sapply(str_split(Var2, " "), function(x) x[1]),
+          `Simulation` =  sapply(str_split(Var2, " "), function(x) x[10])
+        )
+    }
+  )
+
+do.call("rbind", clustal_output) |> 
+  ggplot(aes(x=`Mutation percent`, y = value, col = `Mutation type`, pch = `Mutation type`)) + 
+  geom_point(alpha = .1) + 
+  geom_line(stat = "smooth", method="loess",
+            method.args = list(degree = 1), se = F, alpha = .25, lwd = 2, span = .75) +
+  theme_minimal() + geom_vline(xintercept = 0) + geom_hline(yintercept = 0) +
+  facet_wrap(~Simulation) + 
+  ylab("Distance") + theme(legend.position = "bottom")
+
+```
+## CGR distance results
+
+```{r}
 
 ```
