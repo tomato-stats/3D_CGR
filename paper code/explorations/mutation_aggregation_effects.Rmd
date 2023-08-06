@@ -8,7 +8,7 @@ date: "2023-08-05"
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r}
+```{r header}
 
 #####################################################################
 # Comparing the effect of mutation accumulation between
@@ -20,7 +20,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```
 
-```{r}
+```{r libraries, message = F}
 
 #=====================================================================
 # Loading data and packages -- 
@@ -40,7 +40,7 @@ library(ggdendro)
 
 ```
 
-```{r}
+```{r mut_funcs}
  
 #=====================================================================
 # Mutation functions
@@ -95,9 +95,9 @@ sample_interval <- function(x, size, interval_length){
 
 ```
 
-# Single simulation of mutation effects over time 
+# Single simulation of mutation effects over time {.tabset .tabset-fade}
 
-```{r} 
+```{r single_sim_params, cache = T} 
 
 #=====================================================================
 # Mutation parameter selection. 
@@ -111,7 +111,7 @@ num_mutations <- seq(0, 76, by = intervals)
 
 ```
 
-```{r}
+```{r single_sim, cache = T}
 
 # Select mutation locations
 
@@ -150,7 +150,7 @@ all_mutations <- c(`Parent` = parent_dna, agg_fas)
 
 ## Clustal Omega + P-distance results
 
-```{r, dpi = 300}
+```{r clustal_p_1, dpi = 300}
 #=====================================================================
 # Mutation aggregation effects under Clustal Omega
 #=====================================================================
@@ -204,9 +204,9 @@ full_join(
   scale_color_continuous(low = "blue", high = "orange")
 
 ```
-## CGR distance results
+## CGR shape signature distance results
 
-```{r, dpi = 300}
+```{r cgr_ss_1, dpi = 300, cache = T}
 
 all_mut_cg <- lapply(all_mutations, seq_to_cgr) 
 
@@ -265,9 +265,102 @@ full_join(
 
 ```
 
-# Many simulations of mutation effects over time 
+## CGR volume intersection results 
 
-```{r}
+```{r cgr_vol_int_1, dpi = 300, cache = T}
+
+#=====================================================================
+# Mutation aggregation effects under volume intersection method
+#=====================================================================
+
+set.seed(0)
+
+bandwidth_options <- 
+  c(seq(0.0001, 0.0009, by = 0.0001),
+    seq(0.001, 0.009, by = 0.001),
+    seq(0.01, 0.1, by = 0.01))
+
+volume_results <- 
+  lapply(
+    bandwidth_options, 
+    function(x){ 
+      volume_intersection_tanimoto(all_mutations, x)
+    }
+  )
+
+volume_results_df <- 
+  lapply(
+    seq_along(bandwidth_options), 
+    function(x){
+      melt(volume_results[x], value.name = "tanimoto") |> 
+        filter(Var2 == "Parent" & Var1 != "Parent") |> 
+        mutate(
+          bandwidth_value = bandwidth_options[x],
+          `Mutation type` =  gsub(" = [0-9]*", "", Var1),
+          `Mutation count` = as.numeric(gsub("(Substitutions|Deletions) = ","", Var1)),
+          `Mutation percent` = `Mutation count`/nchar(parent_dna)
+        )
+    }
+  ) 
+
+volume_results_df <- do.call(rbind, volume_results_df)
+
+sub_vol <- volume_results_df |> filter(`Mutation type` == "Substitutions")
+del_vol <- volume_results_df |> filter(`Mutation type` == "Deletions")
+
+# Figure
+# Distance from parent sequence as a function of percent of DNA that is mutated 
+rbind(sub_vol, del_vol) |>   
+  ggplot() + 
+  geom_point(aes(x=`Mutation percent`, y = 1-tanimoto, col = bandwidth_value)) + 
+  facet_wrap(~`Mutation type`) +
+  scale_color_continuous("Bandwidth", low = "blue", high = "orange", trans = "log") +
+  geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
+  theme_minimal() + scale_x_log10() + 
+  ylab("Distance") 
+
+
+# Figure
+# Distance from parent sequence due to deletion mutation v 
+# distance from parent sequence due to substitution mutation, 
+# colored by proportion of sequence that has been mutated.
+full_join(
+  sub_vol, del_vol, 
+  by = c("Mutation count", "Mutation percent", "bandwidth_value"), 
+  suffix = c(".S", ".D")
+) |>
+  ggplot() + 
+  geom_point(aes(x=1-tanimoto.S, y=1-tanimoto.D, col = `Mutation percent`), alpha = .5) + 
+  scale_color_continuous("Mutation\npercent", low = "blue", high = "orange") + 
+  theme_minimal() +  
+  geom_abline(slope = 1, intercept = 0, lty =2) +  
+  geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
+  xlab("Distance from parent sequence\ndue to substitution mutation") + 
+  ylab("Distance from parent sequence\ndue to deletion mutation")
+
+# Figure
+# Distance from parent sequence due to deletion mutation v 
+# distance from parent sequence due to substitution mutation, 
+# colored by bandwidth
+full_join(
+  sub_vol, del_vol, 
+  by = c("Mutation count", "Mutation percent", "bandwidth_value"), 
+  suffix = c(".S", ".D")
+) |>
+  ggplot() + 
+  geom_point(aes(x=1-tanimoto.S, y=1-tanimoto.D, col = bandwidth_value), alpha = .5) + 
+  scale_color_continuous("Bandwidth", low = "blue", high = "orange", trans = "log") + 
+  theme_minimal() +  
+  geom_abline(slope = 1, intercept = 0, lty =2) +  
+  geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
+  xlab("Distance from parent sequence\ndue to substitution mutation") + 
+  ylab("Distance from parent sequence\ndue to deletion mutation")
+
+```
+
+# Many simulations of mutation effects over time {.tabset .tabset-fade}
+
+```{r multi_sim_params}
 
 #=====================================================================
 # Mutation parameter selection. 
@@ -283,7 +376,7 @@ nsims <- 100
 
 ```
 
-```{r}
+```{r multi_sim}
 
 simulations <- vector(mode = "list", length = nsims)
 for(s in 1:nsims){
@@ -347,7 +440,7 @@ for(s in 1:nsims){
 
 ## Clustal Omega + P-distance results 
 
-```{r}
+```{r clustal_p_n}
 
 clustal_output <- 
   lapply(
@@ -366,18 +459,64 @@ clustal_output <-
     }
   )
 
+
 do.call("rbind", clustal_output) |> 
-  ggplot(aes(x=`Mutation percent`, y = value, col = `Mutation type`, pch = `Mutation type`)) + 
-  geom_point(alpha = .1) + 
-  geom_line(stat = "smooth", method="loess",
-            method.args = list(degree = 1), se = F, alpha = .25, lwd = 2, span = .75) +
-  theme_minimal() + geom_vline(xintercept = 0) + geom_hline(yintercept = 0) +
-  facet_wrap(~Simulation) + 
-  ylab("Distance") + theme(legend.position = "bottom")
+    ggplot(aes(x=`Mutation percent`, y = value, col = `Mutation type`, pch = `Mutation type`)) + 
+    geom_point(alpha = .1) + 
+    geom_line(stat = "smooth", method="loess",
+              method.args = list(degree = 1), se = F, alpha = .5, lwd = 2, span = .75) +
+    theme_minimal() + geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + facet_wrap(~`Mutation type`) + 
+    ylab("Distance") + theme(legend.position = "bottom")
+
+
+full_join(
+  do.call("rbind", clustal_output) |> filter(`Mutation type` == "Substitutions"),
+  do.call("rbind", clustal_output) |> filter(`Mutation type` == "Deletions"), 
+  by = c("Var1", "Mutation count", "Mutation percent", "Simulation"), 
+  suffix=c(".S", ".D")
+) |>
+  ggplot() + 
+  geom_point(aes(x=value.S, y=value.D, col = `Mutation percent`), alpha = .15, size = 3) + 
+  theme_minimal() +  
+  geom_abline(slope = 1, intercept = 0, lty = "dashed") +  
+  geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
+  xlab("Distance from parent sequence\ndue to substitution mutation") + 
+  ylab("Distance from parent sequence\ndue to deletion mutation") +
+  scale_color_continuous(low = "blue", high = "orange")
+
+full_join(
+  do.call("rbind", clustal_output) |> filter(`Mutation type` == "Insertions"),
+  do.call("rbind", clustal_output) |> filter(`Mutation type` == "Deletions"), 
+  by = c("Var1", "Mutation count", "Mutation percent", "Simulation"), 
+  suffix=c(".I", ".D")
+) |>
+  ggplot() + 
+  geom_point(aes(x=value.I, y=value.D, col = `Mutation percent`), alpha = .15, size = 3) + 
+  theme_minimal() +  
+  geom_abline(slope = 1, intercept = 0, lty = "dashed") +  
+  geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
+  xlab("Distance from parent sequence\ndue to insertion mutation") + 
+  ylab("Distance from parent sequence\ndue to deletion mutation") +
+  scale_color_continuous(low = "blue", high = "orange")
+
+full_join(
+  do.call("rbind", clustal_output) |> filter(`Mutation type` == "Insertions"),
+  do.call("rbind", clustal_output) |> filter(`Mutation type` == "Substitutions"), 
+  by = c("Var1", "Mutation count", "Mutation percent", "Simulation"), 
+  suffix=c(".I", ".S")
+) |>
+  ggplot() + 
+  geom_point(aes(x=value.I, y=value.S, col = `Mutation percent`), alpha = .15, size = 3) + 
+  theme_minimal() +  
+  geom_abline(slope = 1, intercept = 0, lty = "dashed") +  
+  geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
+  xlab("Distance from parent sequence\ndue to insertion mutation") + 
+  ylab("Distance from parent sequence\ndue to substitution mutation") +
+  scale_color_continuous(low = "blue", high = "orange")
 
 ```
 ## CGR distance results
 
-```{r}
+```{r cgr_ss_n}
 
 ```
