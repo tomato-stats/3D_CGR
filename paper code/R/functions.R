@@ -169,14 +169,14 @@ hist_paired <-
 # and/or coordinates
 #=====================================================================
 
-remove_zv <- function(input_matrix, dim = 2){
-  # Function to identify zero-variance columns
+zv <- function(input_matrix, dim = 2){
+  # identify zero-variance columns
   zv <- apply(input_matrix, dim, function(x){ length(unique(x)) == 1})
-  return(input_matrix[,!zv, drop = F])
+  return(zv)
 }
 
 feature_histograms <- 
-  function(features, bin_count, return_bins = F, return_bin_centers = F){
+  function(features, bin_count, return_breaks = F, return_bin_centers = F){
     if(max(unlist(features)) == pi & min(unlist(features)) == -pi){
       # Histograms for angles may not need to be uniformly distributed. 
       # At least on one instance, which this is accounting for, the angles 
@@ -203,7 +203,7 @@ feature_histograms <-
     bin_centers <- zoo::rollmean(features_breaks, k = 2)
     
     output <- t(features_tabulation)
-    if(return_bins) output <- list(output, features_breaks)
+    if(return_breaks) output <- list(output, features_breaks)
     if(return_bin_centers) output <- list(output, bin_centers)
     return(output)
   }
@@ -231,22 +231,20 @@ feature_histograms <-
 # }
 
 coordinate_histograms <- 
-  function(cgr_coords, bin_count, return_bins = F, drop_empty = F){
+  function(cgr_coords, bin_count, return_breaks = F, return_bin_centers = F){
+    
     # Remove columns with constant data
-    cgr_coords <- lapply(cgr_coords, remove_zv)
+    const <- do.call("rbind", cgr_coords) |> zv()
+    cgr_coords <- lapply(cgr_coords, function(x) x[, !const, drop = F])
     
-    # Remove the origin point if it is included
-    cgr_coords <- lapply(cgr_coords,
-                         function(x){
-                           if(all(x[1,,drop = T] == 0)) return(x[-1,,drop = F])
-                           else return(x)
-                         }
-    )
-    
-    # Remove row of zeros if there is one 
-    if(all(sapply(cgr_coords, function(x) all(x[1,]==0)))){
-      cgr_coords <- lapply(cgr_coords, function(x) x[-1,])
-    }
+    # Remove the origin if it is included
+    cgr_coords <- 
+      lapply(cgr_coords,
+             function(x){
+               if(all(x[1,] == 0)) return(x[-1, , drop = F])
+               else return(x)
+             }
+      )
     
     # Get histogram bounds
     hist_lb <- apply(do.call(rbind, cgr_coords), 2, min)
@@ -267,8 +265,10 @@ coordinate_histograms <-
     tabulations <- sapply(tabulations, unlist)
     colnames(tabulations) <- names(cgr_coords)
 
-    if(!return_bins)  return(t(tabulations)) 
-    else return(list(t(tabulations), bin_centers))
+    output <- t(tabulations)
+    if(return_breaks) output <- list(output, hist_breaks)
+    if(return_bin_centers) output <- list(output, bin_centers)
+    return(output)
   }
 
 # feature_signature <- function(dna_features, bin_count){
