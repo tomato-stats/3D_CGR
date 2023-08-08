@@ -181,7 +181,7 @@ clustal_output |>
   ggplot(aes(x=`Mutation percent`, y = value,col = `Mutation type`, pch = `Mutation type`)) + 
   geom_point() + 
   geom_line(stat = "smooth", method="loess",
-            method.args = list(degree = 1), se = F, alpha = .25, lwd = 2, span = .75) +
+            method.args = list(degree = 1), se = F, alpha = .25, lwd = 2, span = .5) +
   theme_minimal() + geom_vline(xintercept = 0) + geom_hline(yintercept = 0) +
   ylab("Distance") + theme(legend.position = "bottom")
 
@@ -360,7 +360,7 @@ full_join(
 
 # Many simulations of mutation effects over time {.tabset .tabset-fade}
 
-```{r multi_sim_params}
+```{r multi_sim_params, cache = T}
 
 #=====================================================================
 # Mutation parameter selection. 
@@ -376,7 +376,7 @@ nsims <- 100
 
 ```
 
-```{r multi_sim}
+```{r multi_sim, cache = T}
 
 simulations <- vector(mode = "list", length = nsims)
 for(s in 1:nsims){
@@ -407,7 +407,7 @@ for(s in 1:nsims){
   dup_line.last <- insert_at(
     orig_seq, 
     mutation_locations[seq(1, length(mutation_locations), by = i_len)], 
-    mutation_locations[seq(1, length(mutation_locations), by = i_len)] |> as.list()
+    orig_seq[mutation_locations[seq(1, length(mutation_locations), by = i_len)]] |> as.list()
   )
   
   for(i in seq_along(num_mutations)){
@@ -423,7 +423,7 @@ for(s in 1:nsims){
     
     # Duplication mutations
     dup_seq <- dup_line.last[full_ins_helper %in% c("A", "C", "G", "T", 1:(num_mutations[i]))]
-    dup_line[i] <- paste(ins_seq, collapse = "")
+    dup_line[i] <- paste(dup_seq, collapse = "")
     names(dup_line)[i] <- paste("Duplications =", num_mutations[i], "; Length =", i_len, "; Simulation", s)
     
     # Substitution mutations
@@ -440,7 +440,7 @@ for(s in 1:nsims){
 
 ## Clustal Omega + P-distance results 
 
-```{r clustal_p_n}
+```{r clustal_p_n, cache = T}
 
 clustal_output <- 
   lapply(
@@ -517,6 +517,117 @@ full_join(
 ```
 ## CGR distance results
 
-```{r cgr_ss_n}
+
+```{r cgr_ss_n, cache = T}
+
+# Can't run this until my functions are built into a package that can then be 
+# exported to all worker nodes
+# s0 <- proc.time()
+# 
+# cl <- makeCluster(4)
+# coords <- as.matrix(coord1[, 1:3])
+# clusterExport(
+#   cl,
+#   c("simulations", "cgr_distance", "seq_to_cgr", "coord1", "nsims", "coords"),
+#   envir = environment()
+# )
+# 
+# ## set up each worker.
+# clusterEvalQ(cl, {library(tidyverse)})
+# clusterEvalQ(cl, {library(reshape2)})
+# clusterEvalQ(cl, {library(stringr)})
+# clusterEvalQ(cl, {library(Rcpp)})
+# 
+# fracs <- seq(0.05, 1, by = .05)
+# clusterExport(cl, c("fracs"), envir = environment())
+# 
+# cgr_output_list.p <- vector(mode = "list", length = length(fracs))
+# for(f in seq_along(fracs)){
+#   print(fracs[f])
+#   clusterExport(cl, c("f"), envir = environment())
+#   temp <- parLapply(
+#     cl,
+#     1:nsims,
+#     function(i){
+#       lapply(simulations[[i]], seq_to_cgr) |>
+#         cgr_distance(frac = fracs[f]) |> melt() |>
+#         filter(Var1 == "Parent" & Var2 != "Parent") |>
+#         mutate(frac = fracs[f]) |>
+#         mutate(
+#           `Mutation count` = as.numeric(sapply(str_split(Var2, " "), function(x) x[3])),
+#           `Mutation percent` = `Mutation count`/length(orig_seq),
+#           `Mutation type` = sapply(str_split(Var2, " "), function(x) x[1]),
+#           `Simulation` =  sapply(str_split(Var2, " "), function(x) x[10])
+#         )
+#     }
+#   )
+#   cgr_output_list.p[[f]] <- temp
+# }
+# 
+# stopCluster(cl)
+# e0 <- proc.time()
+
+
+fracs <- seq(0.05, 1, by = .05)
+cgr_output_list <- vector(mode = "list", length = length(fracs) * nsims)
+s1 <- proc.time()
+counter <- 1
+for(f in seq_along(fracs)){
+  print(fracs[f])
+  
+  for(i in 1:nsims){
+    print(i)
+    temp <- 
+      lapply(simulations[[i]], seq_to_cgr) |> 
+      cgr_distance(frac = fracs[f]) |> melt() |> 
+      filter(Var1 == "Parent" & Var2 != "Parent") |> 
+      mutate(frac = fracs[f]) |> 
+      mutate(
+        `Mutation count` = as.numeric(sapply(str_split(Var2, " "), function(x) x[3])),
+        `Mutation percent` = `Mutation count`/length(orig_seq),
+        `Mutation type` = sapply(str_split(Var2, " "), function(x) x[1]),
+        `Simulation` =  sapply(str_split(Var2, " "), function(x) x[10])
+      ) 
+    cgr_output_list[[counter]] <- temp
+    counter <- counter + 1
+  }
+}
+e1 <- proc.time()
+
+cgr_output_list.rbind <- do.call("rbind", cgr_output_list)
+
+cgr_substitutions <- cgr_output_list.rbind |> filter(`Mutation type` == "Substitutions") 
+cgr_deletions <- cgr_output_list.rbind |> filter(`Mutation type` == "Deletions") 
+
+# Figure 
+# Plots of the distance from the parent sequence as a function of the 
+# percent of DNA that is mutated. 
+cgr_output_list.rbind |> 
+  ggplot(aes(x=`Mutation percent`, y = value,col = `Mutation type`, pch = `Mutation type`)) + 
+  geom_point(alpha = .15) + 
+  geom_line(stat = "smooth", method="loess",
+            method.args = list(degree = 1), se = F, alpha = .25, lwd = 2, span = .75) +
+  theme_minimal() + geom_vline(xintercept = 0) + geom_hline(yintercept = 0) +
+  facet_wrap(~frac) +
+  ylab("Distance") + theme(legend.position = "bottom")
+
+# Figure 
+# Distance from parent sequence due to deletion mutation v 
+# distance from parent sequence due to substitution mutation, 
+# colored by proportion of sequence that has been mutated.
+full_join(
+  cgr_substitutions, cgr_deletions, 
+  by = c("Var1", "Mutation count", "Mutation percent", "frac"), 
+  suffix=c(".S", ".D")
+) |>
+  ggplot() + 
+  geom_point(aes(x=value.S, y=value.D, col = `Mutation percent`), alpha = .75, size = 3) + 
+  theme_minimal() +  
+  geom_abline(slope = 1, intercept = 0, lty = "dashed") +  
+  geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
+  xlab("Distance from parent sequence\ndue to substitution mutation") + 
+  ylab("Distance from parent sequence\ndue to deletion mutation") +
+  facet_wrap(~frac) + 
+  scale_color_continuous(low = "blue", high = "orange")
 
 ```
