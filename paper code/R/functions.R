@@ -386,6 +386,56 @@ cgr_distance <-
     )
   }
 
+cgr_distance2 <- 
+  function(seq_cg, frac = 1/15, cs = T, power = 1){
+    
+    combine_distances <- function(dist_list, p){
+      # Power mean: arithmetic p = 1, geometric p = 0, harmonic p = -1, quadratic p = 2
+      # As p -> infinity, power mean -> max; 
+      # as p -> -infinity, power mean -> min. 
+      n <- length(dist_list)
+      Reduce(`+`, lapply(dist_list, function(x){(1/n) * x^p}))^(1/p)
+    }
+    
+    center_scale <- function(hist_mat){
+      apply(hist_mat, 1, function(x) {(x- mean(x)) / sd(x)})
+    }
+    
+    if(cs) cen_scal <- center_scale
+    else cen_scal <- identity
+    
+    bins <- ceiling(frac * (mean(sapply(seq_cg, nrow)) - 1))
+    
+    shape_features <- list(
+      lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(1, 0, 0))),
+      lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(0, 1, 0))),
+      lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(0, 0, 1))),
+      lapply(seq_cg, by3roworientedangle4, v = c(1, 0, 0)),
+      lapply(seq_cg, by3roworientedangle4, v = c(0, 1, 0)),
+      lapply(seq_cg, by3roworientedangle4, v = c(0, 0, 1)),
+      lapply(seq_cg, orienteddistance1, v = c(1, 0, 0)),
+      lapply(seq_cg, orienteddistance1, v = c(0, 1, 0)),
+      lapply(seq_cg, orienteddistance1, v = c(0, 0, 1)),
+      lapply(seq_cg, by3roworienteddistance4, v = c(1, 0, 0)),
+      lapply(seq_cg, by3roworienteddistance4, v = c(0, 1, 0)),
+      lapply(seq_cg, by3roworienteddistance4, v = c(0, 0, 1))
+    ) |> 
+      lapply(feature_histograms, bin_count = bins) |> 
+      lapply(function(x) x |> cen_scal() |> dist() |> as.matrix())
+    
+    coord_features <- 
+      coordinate_histograms(seq_cg,  bin_count = bins) |> 
+      split_coord_histograms(ncol(seq_cg[[1]])) |>
+      lapply(function(x) x |> cen_scal() |> dist() |> as.matrix())
+    
+    combine_distances(
+      c(shape_features, coord_features), 
+      p = power
+    )
+  }
+
+
+
 #=====================================================================
 # Function to implement volume intersection method
 #=====================================================================
