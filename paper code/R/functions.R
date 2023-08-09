@@ -398,7 +398,7 @@ cgr_distance2 <-
     }
     
     center_scale <- function(hist_mat){
-      apply(hist_mat, 1, function(x) {(x- mean(x)) / sd(x)})
+      apply(hist_mat, 1, function(x) {(x- mean(x)) / sd(x)}) |> t()
     }
     
     if(cs) cen_scal <- center_scale
