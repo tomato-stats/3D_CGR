@@ -44,7 +44,8 @@ library(ggdendro)
 
 clustal_omega <- function(dna_seq, outgroup = NULL){
   msa(dna_seq, type = "dna", method = "ClustalOmega", order = "input") |> 
-    msaConvert(type = "ape::DNAbin") |> ape::dist.gene() 
+    msaConvert(type = "ape::DNAbin") |> ape::dist.gene() |> 
+    (\(x)x/max(x))() # distances rescaled because bionj does not like distances > 100
 }
 
 # Heatmap function
