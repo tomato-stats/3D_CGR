@@ -441,21 +441,19 @@ cgr_distance2 <-
 #=====================================================================
 
 vol_int_tan <- 
-  function(sequence_list, bandwidth = 0.003, hv_args = list(), vi_args = list()){
+  function(cg_list, bandwidth = 0.003, hv_args = list(), vi_args = list()){
     # This implementation does not use parallelization and is not recommended 
-    output <- matrix(1, nrow = length(sequence_list), ncol = length(sequence_list))
-    
-    cg_list <- lapply(sequence_list, function(dna_seq) seq_to_cgr(dna_seq) |> (\(x)(x[-1,-1]))())  
-    
+    output <- matrix(1, nrow = length(cg_list), ncol = length(cg_list))
+
     hypervolumes1 <- 
-      lapply(seq_along(sequence_list), 
+      lapply(seq_along(cg_list), 
              function(i) 
                do.call(hypervolume_gaussian, 
                        c(list(cg_list[[i]], sd.count = 4,  
                               kde.bandwidth = estimate_bandwidth(data=cg_list[[i]], method = "fixed", value = bandwidth),
-                              name = names(sequence_list)[[i]]), hv_args)))
+                              name = names(cg_list)[[i]]), hv_args)))
     
-    pairwise_combn <- combn(1:length(sequence_list), 2, simplify = F)
+    pairwise_combn <- combn(1:length(cg_list), 2, simplify = F)
     
     output <- 
       lapply(pairwise_combn, 
@@ -471,63 +469,50 @@ vol_int_tan <-
     
     output <- do.call(rbind, output)
     output <- 
-      rbind(output, data.frame(Var1 = 1:length(sequence_list),
-                               Var2 = 1:length(sequence_list), 
-                               tanimoto = rep(1, length(sequence_list)))) |>
+      rbind(output, data.frame(Var1 = 1:length(cg_list),
+                               Var2 = 1:length(cg_list), 
+                               tanimoto = rep(1, length(cg_list)))) |>
       arrange(Var1, Var2)
     output <- output |> 
       pivot_wider(id_cols = Var1, names_from = Var2, values_from = tanimoto) |>
       column_to_rownames("Var1") |> 
       as.matrix()
     
-    colnames(output) <- names(sequence_list)
-    rownames(output) <- names(sequence_list)
+    colnames(output) <- names(cg_list)
+    rownames(output) <- names(cg_list)
     return(output)
   }
 
 
 volume_intersection_tanimoto <- 
-  function(sequence_list, bandwidth = 0.003, hv_args = list(), vi_args = list()){
-    output <- matrix(1, nrow = length(sequence_list), ncol = length(sequence_list))
+  function(cg_list, bandwidth = 0.003, hv_args = list(), vi_args = list()){
+    output <- matrix(1, nrow = length(cg_list), ncol = length(cg_list))
     
     cl <- makeCluster(detectCores() - 1)
-    clusterExport(
-      cl, 
-      c("str_split", 
-        "seq_to_cgr"), 
-      envir = environment()
-    )
-    
-    cg_list <- 
-      parLapply(
-        cl, 
-        sequence_list, 
-        function(dna_seq) seq_to_cgr(dna_seq) |> (\(x)(x[-1,-1]))()
-      )  
-    
+
     ## set up each worker.
     clusterEvalQ(cl, {library(hypervolume)})
     
     clusterExport(
       cl, 
-      c("sequence_list", "cg_list", "bandwidth"),
+      c("cg_list", "bandwidth"),
       envir = environment()
     )
     
     hypervolumes1 <- 
       parLapply(
         cl, 
-        seq_along(sequence_list), 
+        seq_along(cg_list), 
         function(i) 
           do.call(hypervolume_gaussian, 
                   c(list(cg_list[[i]], sd.count = 4,  
                          kde.bandwidth = estimate_bandwidth(data=cg_list[[i]], method = "fixed", value = bandwidth),
-                         name = names(sequence_list)[[i]]), hv_args)
+                         name = names(cg_list)[[i]]), hv_args)
           )
       )
     
     gc()
-    pairwise_combn <- combn(1:length(sequence_list), 2, simplify = F)
+    pairwise_combn <- combn(1:length(cg_list), 2, simplify = F)
     
     output <-
       parLapply(
@@ -545,17 +530,17 @@ volume_intersection_tanimoto <-
     
     stopCluster(cl)
     output <- do.call(rbind, output)
-    output <- rbind(output, data.frame(Var1 = 1:length(sequence_list),
-                                       Var2 = 1:length(sequence_list), 
-                                       tanimoto = rep(1, length(sequence_list)))) |>
+    output <- rbind(output, data.frame(Var1 = 1:length(cg_list),
+                                       Var2 = 1:length(cg_list), 
+                                       tanimoto = rep(1, length(cg_list)))) |>
       arrange(Var1, Var2)
     output <- output |> 
       pivot_wider(id_cols = Var1, names_from = Var2, values_from = tanimoto) |>
       column_to_rownames("Var1") |> 
       as.matrix()
     
-    colnames(output) <- names(sequence_list)
-    rownames(output) <- names(sequence_list)
+    colnames(output) <- names(cg_list)
+    rownames(output) <- names(cg_list)
     return(output)
   }
 
