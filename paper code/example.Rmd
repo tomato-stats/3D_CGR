@@ -28,7 +28,7 @@ library(ggdendro)
 
 ```
 
-```{r}
+```{r, dpi = 400}
 #####################################################################
 # Example DNA sequences analyzed by 3D CGR / paper reproduction
 # This code does not run in parallel and the section on volume intersection
@@ -44,7 +44,7 @@ library(ggdendro)
 
 clustal_omega <- function(dna_seq, outgroup = NULL){
   msa(dna_seq, type = "dna", method = "ClustalOmega", order = "input") |> 
-    msaConvert(type = "ape::DNAbin") |> ape::dist.gene() |> 
+    msaConvert(type = "ape::DNAbin") |> ape::dist.gene() |> # can also use dist.p() from the phangorn package. 
     (\(x)x/max(x))() # distances rescaled because bionj does not like distances > 100
 }
 
@@ -60,15 +60,16 @@ hm <- function(distances, ...){
     scale_fill_distiller(palette = "Spectral", ...) +
     theme_light() + 
     theme(
-      axis.text.x = element_text(angle = 90, vjust = .5), 
+      axis.text.x = element_text(angle = 90, vjust = .5, hjust = 1), 
       axis.title.x = element_blank(), 
-      axis.title.y = element_blank()
+      axis.title.y = element_blank(), 
+      legend.position = "bottom"
     ) +
     coord_fixed()
 }
 
 
-clustal_omega(beta_seq) |> hm()
+clustal_omega(beta_seq) |> hm() 
 clustal_omega(beta_seq) |> bionj() |> root("gallus") |> plot()
 clustal_omega(beta_seq) |> fastme.bal() |> root("gallus") |> plot()
 
@@ -76,7 +77,42 @@ clustal_omega(nadh) |> hm(trans = "exp") # transformation of color to facilitate
 clustal_omega(nadh) |> bionj() |> root("Saimiri sciureus") |> plot()
 clustal_omega(nadh) |> fastme.bal() |> root("Saimiri sciureus") |> plot()
 
-clustal_omega(sim_fas)
+
+clustal_omega(yin_fas[-(1:7)]) |> hm()
+clustal_omega(yin_fas[-(1:7)]) |> bionj() |> plot() 
+clustal_omega(yin_fas[-(1:7)]) |> fastme.bal() |> plot()
+
+
+align_plots_column <- function (...) {
+    pl <- list(...)
+    stopifnot(do.call(all, lapply(pl, inherits, "gg")))
+    gl <- lapply(pl, ggplotGrob)
+    bind2 <- function(x, y) gtable:::cbind_gtable(x, y, "first")
+    combined <- Reduce(bind2, gl[-1], gl[[1]])
+    wl <- lapply(gl, "[[", "heights")
+    combined$heights <- do.call(grid::unit.pmax, wl)
+    grid::grid.newpage()
+    grid::grid.draw(combined)
+}
+
+align_plots_row <- function (...) {
+    pl <- list(...)
+    stopifnot(do.call(all, lapply(pl, inherits, "gg")))
+    gl <- lapply(pl, ggplotGrob)
+    bind2 <- function(x, y) gtable:::rbind_gtable(x, y, "first")
+    combined <- Reduce(bind2, gl[-1], gl[[1]])
+    wl <- lapply(gl, "[[", "widths")
+    combined$widths <- do.call(grid::unit.pmax, wl)
+    grid::grid.newpage()
+    grid::grid.draw(combined)
+}
+
+align_plots_column(
+  clustal_omega(beta_seq) |> hm(),
+  clustal_omega(nadh) |> hm(trans = "exp"),  
+  clustal_omega(yin_fas[-(1:7)]) |> hm()
+  )
+
 
 ```
 
@@ -86,28 +122,37 @@ clustal_omega(sim_fas)
 # Shape signature results 
 #=====================================================================
 
-beta_cg <- lapply(beta_seq, seq_to_hypercomplex_cg)  
-nadh_cg <- lapply(nadh, seq_to_hypercomplex_cg)  
-sim_cg <- lapply(sim_fas, seq_to_hypercomplex_cg) 
+beta_cg <- lapply(beta_seq, seq_to_cgr)  
+nadh_cg <- lapply(nadh, seq_to_cgr)  
+sim_fas <- yin_fas[-(1:7)]
+names(sim_fas) <- gsub("^B$", "Original", names(sim_fas))
+names(sim_fas) <- gsub("B/", "", names(sim_fas))
+sim_cg <- lapply(sim_fas, seq_to_cgr) 
 
-cgr_distance(beta_cg, frac = 1) |> hm()
-cgr_distance(beta_cg, frac = 1) |> bionj() |> ape::root("gallus") |> plot()
-cgr_distance(beta_cg, frac = 1) |> fastme.bal() |> root("gallus") |> plot() 
+cgr_distance2(beta_cg, frac = 1) |> hm()
+cgr_distance2(beta_cg, frac = 1) |> bionj() |> ape::root("gallus") |> plot()
+cgr_distance2(beta_cg, frac = 1) |> fastme.bal() |> root("gallus") |> plot() 
 
-cgr_distance(beta_cg, frac = 1/15) |> hm()
-cgr_distance(beta_cg, frac = 1/15) |> bionj() |> ape::root("gallus") |> plot()
-cgr_distance(beta_cg, frac = 1/15) |> fastme.bal() |> root("gallus") |> plot() 
+cgr_distance2(beta_cg, frac = 1/15) |> hm()
+cgr_distance2(beta_cg, frac = 1/15) |> bionj() |> ape::root("gallus") |> plot()
+cgr_distance2(beta_cg, frac = 1/15) |> fastme.bal() |> root("gallus") |> plot() 
 
-cgr_distance(nadh_cg, frac = 1) |> hm()
-cgr_distance(nadh_cg, frac = 1) |> bionj() |> root("Saimiri sciureus") |> plot()
-cgr_distance(nadh_cg, frac = 1) |> fastme.bal() |> root("Saimiri sciureus") |> plot()
+cgr_distance2(nadh_cg, frac = 1) |> hm()
+cgr_distance2(nadh_cg, frac = 1) |> bionj() |> root("Saimiri sciureus") |> plot()
+cgr_distance2(nadh_cg, frac = 1) |> fastme.bal() |> root("Saimiri sciureus") |> plot()
 
-cgr_distance(nadh_cg, frac = 1/15) |> hm()
-cgr_distance(nadh_cg, frac = 1/15) |> bionj() |> root("Saimiri sciureus") |> plot()
-cgr_distance(nadh_cg, frac = 1/15) |> fastme.bal() |> root("Saimiri sciureus") |> plot()
+cgr_distance2(nadh_cg, frac = 1/15) |> hm()
+cgr_distance2(nadh_cg, frac = 1/15) |> bionj() |> root("Saimiri sciureus") |> plot()
+cgr_distance2(nadh_cg, frac = 1/15) |> fastme.bal() |> root("Saimiri sciureus") |> plot()
 
-cgr_distance(sim_cg) |> hm()
+cgr_distance2(sim_cg, frac = 1) |> hm()
+cgr_distance2(sim_cg, frac = 1) |> bionj() |> plot()
+cgr_distance2(sim_cg, frac = 1) |> fastme.bal() |> plot() 
 
+cgr_distance2(sim_cg, frac = 1/15) |> hm()
+cgr_distance2(sim_cg, frac = 1/15) |> bionj() |> plot()
+cgr_distance2(sim_cg, frac = 1/15) |> fastme.bal() |> plot() 
+  
 ```
 
 ```{r, eval = F}
@@ -122,43 +167,121 @@ set.seed(0)
 # Reduce samples.per.point and num.points.max to improve runtime or eliminate
 # the parameters altogether to use default values of the hypervolume package
 
-volume_intersection_tanimoto(
-  beta_seq, 
-  hv_args = list(samples.per.point = 5000), 
-  vi_args = list(num.points.max = 150000)
-) |> 
-  print(
-    plot(
-      hclust(as.dist(1-.), method = "complete" ), 
-      axes = F, xlab = NULL, ylab = NULL, main = NULL, 
-      sub = NULl, ann = F, cex = .75
-    )
-  )
 
-volume_intersection_tanimoto(
-  nadh, 
-  hv_args = list(samples.per.point = 5000), 
-  vi_args = list(num.points.max = 150000)
-) |>  
-  print(
-    plot(
-      hclust(as.dist(1-.), method = "complete" ), 
-      axes = F, xlab = NULL, ylab = NULL, main = NULL, 
-      sub = NULl, ann = F, cex = .75
-    )
-  )
+beta_tanimoto <- 
+  volume_intersection_tanimoto(
+    lapply(beta_cg, function(x) x[-1,]), # Drop the origin point
+    hv_args = list(samples.per.point = 5000), 
+    vi_args = list(num.points.max = 150000)
+  ) 
 
-volume_intersection_tanimoto(
-  sim_fas, 
-  hv_args = list(samples.per.point = 5000), 
-  vi_args = list(num.points.max = 150000)) |> 
-  print(
-    plot(
-      hclust(as.dist(1-.), method = "complete" ), 
-      axes = F, xlab = NULL, ylab = NULL, main = NULL, 
-      sub = NULl, ann = F, cex = .75
-    )
-  )
+beta_tanimoto |> (\(x) 1 - x)() |> bionj() |> ape::root("gallus") |> plot()
+
+nadh_tanimoto <- 
+  volume_intersection_tanimoto(
+    lapply(nadh_cg, function(x) x[-1,]), # Drop the origin point
+    hv_args = list(samples.per.point = 5000), 
+    vi_args = list(num.points.max = 150000)
+  ) 
+
+nadh_tanimoto |> (\(x) 1 - x)() |> bionj() |> root("Saimiri sciureus") |> plot()
+
+sim_tanimoto <- 
+  volume_intersection_tanimoto(
+    lapply(sim_cg, function(x) x[-1,]), # Drop the origin point
+    hv_args = list(samples.per.point = 5000), 
+    vi_args = list(num.points.max = 150000)) 
+
+sim_tanimoto |> (\(x) 1 - x)()  |> bionj() |> plot()
+
+```
+
+
+```{r}
+
+hm.vir <- function(distances, ...){
+  dat <- distances |> as.matrix() |> reshape2::melt(value.name = "distance")
+  # tri <- distances |> as.matrix() |> upper.tri(diag = T) |> reshape2::melt() |> pull(value)
+  # dat <- dat[tri, , drop = F]
+  dat |> 
+    ggplot() + 
+    geom_tile(aes(x = Var1, y = Var2, fill = distance)) + 
+    scale_fill_viridis(option = "turbo", limits = c(0, 1), ...) +
+    theme_light() + 
+    theme(
+      axis.text.x = element_text(angle = 90, vjust = .25, hjust = 1), 
+      axis.title.x = element_blank(), 
+      axis.title.y = element_blank(), 
+      legend.position = "bottom"
+    ) +
+    coord_fixed()
+}
+
+
+
+align_plots1(
+    clustal_omega(beta_seq) |> hm.vir(),
+    cgr_distance2(beta_cg, frac = 1/15, normalize = T) |> (\(x) x / max(x))() |> hm.vir(), 
+    beta_tanimoto |> (\(x) 1 - x)()  |> (\(x) x / max(x))() |> hm.vir()
+)
+
+align_plots1(
+  clustal_omega(nadh) |> hm.vir(),
+  cgr_distance2(nadh_cg, frac = 1/15, normalize = T) |> (\(x) x / max(x))() |> hm.vir(), 
+  nadh_tanimoto |> (\(x) 1 - x)() |> (\(x) x / max(x))() |> hm.vir() 
+)
+
+align_plots1(
+  clustal_omega(sim_fas) |> hm.vir(),
+  cgr_distance2(sim_cg, frac = 1/15, normalize = T)|> (\(x) x / max(x))()  |> hm.vir() , 
+  sim_tanimoto |> (\(x) 1 - x)() |> (\(x) x / max(x))() |> hm.vir()
+)
+
+```
+
+```{r}
+
+
+library(cowplot)
+
+pdf("heatmaps.pdf", height = 18, width = 18)
+plot_grid(
+    clustal_omega(beta_seq) |> hm.vir() + theme(legend.position = "none"),
+    cgr_distance2(beta_cg, frac = 1/15, normalize = T) |> (\(x) x / max(x))() |> hm.vir()+ theme(legend.position = "none"), 
+    beta_tanimoto |> (\(x) 1 - x)()  |> (\(x) x / max(x))() |> hm.vir()+ theme(legend.position = "right"),
+    clustal_omega(nadh) |> hm.vir()+ theme(legend.position = "none"),
+    cgr_distance2(nadh_cg, frac = 1/15, normalize = T) |> (\(x) x / max(x))() |> hm.vir()+ theme(legend.position = "none"), 
+    nadh_tanimoto |> (\(x) 1 - x)() |> (\(x) x / max(x))() |> hm.vir() + theme(legend.position = "right") ,
+    clustal_omega(sim_fas) |> hm.vir() + theme(legend.position = "none"),
+    cgr_distance2(sim_cg, frac = 1/15, normalize = T)|> (\(x) x / max(x))()  |> hm.vir() + theme(legend.position = "none"), 
+    sim_tanimoto |> (\(x) 1 - x)() |> (\(x) x / max(x))() |> hm.vir() + theme(legend.position = "right"),
+    align = "hv", axis = "lr", ncol = 3
+)
+dev.off()
+
+```
+
+```{r}
+ggsave("heatmaps.png", width = 21, height = 21, dpi = 600)
+```
+
+```{r}
+
+library(ggtree)
+
+plot_grid(
+  clustal_omega(beta_seq) |> bionj() |> root("gallus") |> ggtree() + geom_tiplab(),
+  cgr_distance2(beta_cg, frac = 1/15, normalize = T) |> (\(x) x / max(x))() |> bionj() |> root("gallus") |> ggtree() + geom_tiplab(),
+  beta_tanimoto |> (\(x) 1 - x)() |> bionj() |> ape::root("gallus") |> ggtree() + geom_tiplab(),
+  clustal_omega(nadh) |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab(),
+  cgr_distance2(nadh_cg, frac = 1/15) |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab(),
+  nadh_tanimoto |> (\(x) 1 - x)() |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab(),
+  clustal_omega(sim_fas) |> bionj() |> ggtree() + geom_tiplab(),
+  cgr_distance2(sim_cg, frac = 1/15) |> bionj() |> ggtree() + geom_tiplab(),
+  sim_tanimoto |> (\(x) 1 - x)() |> (\(x) x / max(x))() |> bionj() |> ggtree() + geom_tiplab(),
+  align = "hv", axis = "lr", ncol = 3
+)
+
 
 ```
 
