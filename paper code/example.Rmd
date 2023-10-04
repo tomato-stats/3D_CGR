@@ -268,20 +268,37 @@ ggsave("heatmaps.png", width = 21, height = 21, dpi = 600)
 ```{r}
 
 library(ggtree)
+library(patchwork)
 
 plot_grid(
-  clustal_omega(beta_seq) |> bionj() |> root("gallus") |> ggtree() + geom_tiplab(),
-  cgr_distance2(beta_cg, frac = 1/15, normalize = T) |> (\(x) x / max(x))() |> bionj() |> root("gallus") |> ggtree() + geom_tiplab(),
-  beta_tanimoto |> (\(x) 1 - x)() |> bionj() |> ape::root("gallus") |> ggtree() + geom_tiplab(),
-  clustal_omega(nadh) |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab(),
-  cgr_distance2(nadh_cg, frac = 1/15) |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab(),
-  nadh_tanimoto |> (\(x) 1 - x)() |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab(),
-  clustal_omega(sim_fas) |> bionj() |> ggtree() + geom_tiplab(),
-  cgr_distance2(sim_cg, frac = 1/15) |> bionj() |> ggtree() + geom_tiplab(),
-  sim_tanimoto |> (\(x) 1 - x)() |> (\(x) x / max(x))() |> bionj() |> ggtree() + geom_tiplab(),
+  clustal_omega(beta_seq) |> bionj() |> root("gallus") |> ggtree() + geom_tiplab()+ coord_cartesian(xlim = c(0, .65)),
+  cgr_distance2(beta_cg, frac = 1/15, normalize = T) |> (\(x) x / max(x))() |> bionj() |> root("gallus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, .65)), 
+  beta_tanimoto |> (\(x) 1 - x)() |> bionj() |> ape::root("gallus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, .65)),
+  clustal_omega(nadh) |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, .75)),
+  cgr_distance2(nadh_cg, frac = 1/15) |> (\(x) x / max(x))() |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, .75)),
+  nadh_tanimoto |> (\(x) 1 - x)() |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, .75)),
+  clustal_omega(sim_fas) |> bionj() |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, 1)),
+  cgr_distance2(sim_cg, frac = 1/15) |> bionj() |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, 1)),
+  sim_tanimoto |> (\(x) 1 - x)() |> (\(x) x / max(x))() |> bionj() |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, 1)),
   align = "hv", axis = "lr", ncol = 3
 )
 
+  (clustal_omega(beta_seq) |> bionj() |> root("gallus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, 1))) + 
+  (cgr_distance2(beta_cg, frac = 1/15, normalize = T) |> (\(x) x / max(x))() |> bionj() |> root("gallus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, 1))) + 
+  (beta_tanimoto |> (\(x) 1 - x)() |> bionj() |> ape::root("gallus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, 1))) + 
+  (clustal_omega(nadh) |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, 1))) + 
+  (cgr_distance2(nadh_cg, frac = 1/15) |> (\(x) x / max(x))() |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, 1))) + 
+  (nadh_tanimoto |> (\(x) 1 - x)() |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, 1))) + 
+  (clustal_omega(sim_fas) |> bionj() |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, 1))) + 
+  (cgr_distance2(sim_cg, frac = 1/15) |> bionj() |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, 1))) + 
+  (sim_tanimoto |> (\(x) 1 - x)() |> (\(x) x / max(x))() |> bionj() |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, 1))) + patchworkL::plot_layout(ncol = 3)
+
+
+```
+
+```{r}
+
+ggsave("trees.png", width = 35, height = 21, dpi = 600)
 
 ```
 
@@ -334,13 +351,20 @@ seq_to_2Dcg(beta_seq[[1]]) |> head(rows) |>
 
 
 # Figure 2.1. 3D CGR of the MT-NADH for the Macaca fascicular
-for_plotly <- seq_to_hypercomplex_cg4(nadh[[1]]) %>% rownames_to_column() %>% 
-  dplyr::rename(position = rowname) %>% mutate(position = as.numeric(position))
-fig <- plot_ly(for_plotly, x = ~i, y = ~j, z = ~k, 
-               size = I(300), color = ~position, opacity = .85)
-fig <- fig %>% add_markers()
-fig
-
+for_plotly <- seq_to_cgr(nadh[[1]])%>% as.data.frame() %>% rownames_to_column() %>% 
+    dplyr::rename(position = rowname) %>% mutate(position = as.numeric(position))
+fig <- plotly::plot_ly(for_plotly, x = ~i, y = ~j, z = ~k, 
+                       size = I(1000), marker = list(line=list(width=0)), color = ~position, opacity = .85)
+fig <- fig %>% plotly::add_markers()
+fig %>% 
+    plotly::config(
+        toImageButtonOptions = list(
+            format = "png",
+            filename = "myplot2",
+            width = 1000 * .75,
+            height = 750* .75, scale = 2
+        )
+    )
 
 # Figure 3.2 Sequence alignment of the CDS of theβ-globin gene for the chimp, human, and rabbit
 alignment_to_vector <- function(alignment){
