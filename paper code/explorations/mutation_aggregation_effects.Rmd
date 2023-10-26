@@ -27,8 +27,8 @@ knitr::opts_chunk$set(echo = TRUE)
 #   assumes "3D_CGR/paper code" is the current working directory
 #=====================================================================
 
-source("./data/sequences.R")
-source("./R/functions.R")
+source("../data/sequences.R")
+source("../R/functions.R")
 
 library(reshape2)
 library(msa) # From Bioconductor
@@ -284,6 +284,68 @@ cgr_output <-
     `Mutation count` = as.numeric(gsub("(Substitutions|Deletions) = ", "", Var2)),
     `Mutation percent` = `Mutation count`/nchar(parent_dna),
     `Mutation type` = gsub(" = [0-9]*", "", Var2)
+  ) |> 
+  group_by(`Mutation type`, frac) |> 
+  mutate(value.scaled = value / max(value))
+
+
+cgr_substitutions <- cgr_output |> filter(`Mutation type` == "Substitutions") 
+cgr_deletions <- cgr_output |> filter(`Mutation type` == "Deletions") 
+
+# Figure 
+# Plots of the distance from the parent sequence as a function of the 
+# percent of DNA that is mutated. 
+cgr_output |> 
+  ggplot(aes(x=`Mutation percent`, y = value,col = `Mutation type`, pch = `Mutation type`)) + 
+  geom_point() + 
+  geom_line(stat = "smooth", method="loess",
+            method.args = list(degree = 1), se = F, alpha = .25, lwd = 2, span = .5) +
+  theme_minimal() + geom_vline(xintercept = 0) + geom_hline(yintercept = 0) +
+  facet_wrap(~frac) +
+  ylab("Distance") + theme(legend.position = "bottom")
+
+# Figure 
+# Distance from parent sequence due to deletion mutation v 
+# distance from parent sequence due to substitution mutation, 
+# colored by proportion of sequence that has been mutated.
+full_join(
+  cgr_substitutions, cgr_deletions, 
+  by = c("Var1", "Mutation count", "Mutation percent", "frac"), 
+  suffix=c(".S", ".D")
+) |>
+  ggplot() + 
+  geom_point(aes(x=value.S, y=value.D, col = `Mutation percent`), alpha = .75, size = 3) + 
+  theme_minimal() +  
+  geom_abline(slope = 1, intercept = 0, lty = "dashed") +  
+  geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
+  xlab("Distance from parent sequence\ndue to substitution mutation") + 
+  ylab("Distance from parent sequence\ndue to deletion mutation") +
+  facet_wrap(~frac) + 
+  scale_color_continuous(low = "blue", high = "orange")
+
+
+```
+
+
+```{r cgr3_ss_1, dpi = 300, cache = T}
+
+all_mut_cg <- lapply(all_mutations, seq_to_cgr) 
+
+fracs <- seq(0.05, 1, by = .05)
+
+cgr_output <- 
+  lapply(
+    fracs, 
+    function(x) 
+      cgr_distance3(all_mut_cg, frac = x) |> melt() |> 
+      filter(Var1 == "Parent" & Var2 != "Parent") |> 
+      mutate(frac = x)
+  ) |> 
+  (\(x) do.call("rbind", x) )() |> 
+  mutate(
+    `Mutation count` = as.numeric(gsub("(Substitutions|Deletions) = ", "", Var2)),
+    `Mutation percent` = `Mutation count`/nchar(parent_dna),
+    `Mutation type` = gsub(" = [0-9]*", "", Var2)
   ) 
 
 
@@ -324,6 +386,68 @@ full_join(
 
 ```
 
+
+```{r cgr4_ss_1, dpi = 300, cache = T}
+
+all_mut_cg <- lapply(all_mutations, seq_to_cgr) 
+
+fracs <- seq(0.05, 1, by = .05)
+
+cgr_output <- 
+  lapply(
+    fracs, 
+    function(x) 
+      cgr_distance4(all_mut_cg, frac = x) |> melt() |> 
+      filter(Var1 == "Parent" & Var2 != "Parent") |> 
+      mutate(frac = x)
+  ) |> 
+  (\(x) do.call("rbind", x) )() |> 
+  mutate(
+    `Mutation count` = as.numeric(gsub("(Substitutions|Deletions) = ", "", Var2)),
+    `Mutation percent` = `Mutation count`/nchar(parent_dna),
+    `Mutation type` = gsub(" = [0-9]*", "", Var2)
+  ) 
+
+
+cgr_substitutions <- cgr_output |> filter(`Mutation type` == "Substitutions") 
+cgr_deletions <- cgr_output |> filter(`Mutation type` == "Deletions") 
+
+# Figure 
+# Plots of the distance from the parent sequence as a function of the 
+# percent of DNA that is mutated. 
+cgr_output |> 
+  ggplot(aes(x=`Mutation percent`, y = value,col = `Mutation type`, pch = `Mutation type`)) + 
+  geom_point() + 
+  geom_line(stat = "smooth", method="loess",
+            method.args = list(degree = 1), se = F, alpha = .25, lwd = 2, span = .5) +
+  theme_minimal() + geom_vline(xintercept = 0) + geom_hline(yintercept = 0) +
+  facet_wrap(~frac) +
+  ylab("Distance") + theme(legend.position = "bottom")
+
+# Figure 
+# Distance from parent sequence due to deletion mutation v 
+# distance from parent sequence due to substitution mutation, 
+# colored by proportion of sequence that has been mutated.
+full_join(
+  cgr_substitutions, cgr_deletions, 
+  by = c("Var1", "Mutation count", "Mutation percent", "frac"), 
+  suffix=c(".S", ".D")
+) |>
+  ggplot() + 
+  geom_point(aes(x=value.S, y=value.D, col = `Mutation percent`), alpha = .75, size = 3) + 
+  theme_minimal() +  
+  geom_abline(slope = 1, intercept = 0, lty = "dashed") +  
+  geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
+  xlab("Distance from parent sequence\ndue to substitution mutation") + 
+  ylab("Distance from parent sequence\ndue to deletion mutation") +
+  facet_wrap(~frac) + 
+  scale_color_continuous(low = "blue", high = "orange")
+
+
+```
+
+
+
 ## CGR volume intersection results 
 
 ```{r cgr_vol_int_1, dpi = 300, cache = T}
@@ -339,11 +463,13 @@ bandwidth_options <-
     seq(0.001, 0.009, by = 0.001),
     seq(0.01, 0.1, by = 0.01))
 
+all_cgr <- lapply(all_mutations, seq_to_cgr)
+
 volume_results <- 
   lapply(
     bandwidth_options, 
     function(x){ 
-      volume_intersection_tanimoto(all_mutations, x)
+      volume_intersection_tanimoto(lapply(all_cgr, function(y) y[-1,]), x)
     }
   )
 
@@ -362,10 +488,14 @@ volume_results_df <-
     }
   ) 
 
-volume_results_df <- do.call(rbind, volume_results_df)
+volume_results_df <- do.call(rbind, volume_results_df) 
 
-sub_vol <- volume_results_df |> filter(`Mutation type` == "Substitutions")
-del_vol <- volume_results_df |> filter(`Mutation type` == "Deletions")
+sub_vol <- volume_results_df |> mutate(value = 1 - tanimoto) |> group_by(bandwidth_value) |> mutate(value.scaled = value / max(value)) |> filter(`Mutation type` == "Substitutions")
+del_vol <- volume_results_df |> mutate(value = 1 - tanimoto) |> group_by(bandwidth_value) |> mutate(value.scaled = value / max(value)) |> filter(`Mutation type` == "Deletions")
+
+```
+
+```{r, cache = T, dpi = 300}
 
 # Figure
 # Distance from parent sequence as a function of percent of DNA that is mutated 
@@ -414,6 +544,218 @@ full_join(
   geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
   xlab("Distance from parent sequence\ndue to substitution mutation") + 
   ylab("Distance from parent sequence\ndue to deletion mutation")
+
+```
+
+```{r}
+
+
+test <- str_split(all_mutations, "")
+names(test) <- names(all_mutations)
+kmer::kdistance(test)
+
+kmer_output <-
+  kmer::kdistance(test) |> as.matrix() |> melt() |> 
+  mutate(
+    `Mutation count` = as.numeric(gsub("(Substitutions|Deletions) = ", "", Var2)),
+    `Mutation percent` = `Mutation count`/nchar(parent_dna),
+    `Mutation type` = gsub(" = [0-9]*", "", Var2)
+  ) 
+
+
+kmer_substitutions <- kmer_output |> filter(`Mutation type` == "Substitutions") 
+kmer_deletions <- kmer_output |> filter(`Mutation type` == "Deletions") 
+
+# Figure 
+# Plots of the distance from the parent sequence as a function of the 
+# percent of DNA that is mutated. 
+kmer_output |> 
+  ggplot(aes(x=`Mutation percent`, y = value,col = `Mutation type`, pch = `Mutation type`)) + 
+  geom_point() + 
+  geom_line(stat = "smooth", method="loess",
+            method.args = list(degree = 1), se = F, alpha = .25, lwd = 2, span = .5) +
+  theme_minimal() + geom_vline(xintercept = 0) + geom_hline(yintercept = 0) +
+  ylab("Distance") + theme(legend.position = "bottom")
+
+# Figure 
+# Distance from parent sequence due to deletion mutation v 
+# distance from parent sequence due to substitution mutation, 
+# colored by proportion of sequence that has been mutated.
+full_join(
+  kmer_substitutions, kmer_deletions, 
+  by = c("Var1", "Mutation count", "Mutation percent"), 
+  suffix=c(".S", ".D")
+) |>
+  ggplot() + 
+  geom_point(aes(x=value.S, y=value.D, col = `Mutation percent`), alpha = .75, size = 3) + 
+  theme_minimal() +  
+  geom_abline(slope = 1, intercept = 0, lty = "dashed") +  
+  geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
+  xlab("Distance from parent sequence\ndue to substitution mutation") + 
+  ylab("Distance from parent sequence\ndue to deletion mutation") +
+  scale_color_continuous(low = "blue", high = "orange")
+
+
+# Figure 
+# Plots of the distance from the parent sequence as a function of the 
+# percent of DNA that is mutated. 
+```
+
+
+```{r}
+
+bind_rows(
+  full_join(
+    clustal_substitutions |> mutate(value.scaled = value / nchar(beta_seq[[2]])), 
+    clustal_deletions |> mutate(value.scaled = value / nchar(beta_seq[[2]])), 
+    by = c("Var1", "Mutation count", "Mutation percent"), 
+    suffix=c(".S", ".D")
+  ) |> mutate(method = "Clustal Omega, p-distance"),
+  
+  full_join(
+    kmer_substitutions, kmer_deletions, 
+    by = c("Var1", "Mutation count", "Mutation percent"), 
+    suffix=c(".S", ".D")
+  ) |> mutate(method = "kmer distance"),
+  
+  full_join(
+    sub_vol, del_vol, 
+    by = c("Mutation count", "Mutation percent", "bandwidth_value"), 
+    suffix = c(".S", ".D")
+  ) |> mutate(method = "volume intersection"),
+  
+  full_join(
+    cgr_substitutions, cgr_deletions, 
+    by = c("Var1", "Mutation count", "Mutation percent", "frac"), 
+    suffix=c(".S", ".D")
+  ) |> mutate(method = "shape signature")
+)
+
+
+# All plots in one
+
+library(ggtree)
+library(patchwork)
+
+# plot_grid(
+#   full_join(
+#     clustal_substitutions |> mutate(value.scaled = value / nchar(beta_seq[[2]])), 
+#     clustal_deletions |> mutate(value.scaled = value / nchar(beta_seq[[2]])), 
+#     by = c("Var1", "Mutation count", "Mutation percent"), 
+#     suffix=c(".S", ".D")
+#   ) |>
+#     ggplot() + 
+#     geom_point(aes(x=value.scaled.S, y=value.scaled.D, col = `Mutation percent`), alpha = .75, size = 3) + 
+#     theme_minimal() +  
+#     geom_abline(slope = 1, intercept = 0, lty = "dashed") +  
+#     geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
+#     xlab("Distance from parent sequence\ndue to substitution mutation") + 
+#     ylab("Distance from parent sequence\ndue to deletion mutation") +
+#     scale_color_continuous(low = "blue", high = "orange") +
+#     coord_fixed(xlim = c(0, 1)),
+#   # full_join(
+#   #   kmer_substitutions, kmer_deletions, 
+#   #   by = c("Var1", "Mutation count", "Mutation percent"), 
+#   #   suffix=c(".S", ".D")
+#   # ) |>
+#   #   ggplot() + 
+#   #   geom_point(aes(x=value.S, y=value.D, col = `Mutation percent`), alpha = .75, size = 3) + 
+#   #   theme_minimal() +  
+#   #   geom_abline(slope = 1, intercept = 0, lty = "dashed") +  
+#   #   geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
+#   #   xlab("Distance from parent sequence\ndue to substitution mutation") + 
+#   #   ylab("Distance from parent sequence\ndue to deletion mutation") +
+#   #   scale_color_continuous(low = "blue", high = "orange") +
+#   #   coord_fixed(xlim = c(0, 1)),
+#   # colored by proportion of sequence that has been mutated.
+#   full_join(
+#     sub_vol,
+#     del_vol, 
+#     by = c("Mutation count", "Mutation percent", "bandwidth_value"), 
+#     suffix = c(".S", ".D")
+#   ) |> 
+#     ggplot() + 
+#     geom_point(aes(x=value.scaled.S, y=value.scaled.D, col = `Mutation percent`), alpha = .5) + 
+#     scale_color_continuous("Mutation\npercent", low = "blue", high = "orange") + 
+#     theme_minimal() +  
+#     geom_abline(slope = 1, intercept = 0, lty =2) +  
+#     geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
+#     xlab("Distance from parent sequence\ndue to substitution mutation") + 
+#     ylab("Distance from parent sequence\ndue to deletion mutation") +
+#     coord_fixed(xlim = c(0, 1)),
+#   full_join(
+#     cgr_substitutions, cgr_deletions, 
+#     by = c("Var1", "Mutation count", "Mutation percent", "frac"), 
+#     suffix=c(".S", ".D")
+#   ) |>
+#     ggplot() + 
+#     geom_point(aes(x=value.scaled.S, y=value.scaled.D, col = `Mutation percent`), alpha = .75, size = 3) + 
+#     theme_minimal() +  
+#     geom_abline(slope = 1, intercept = 0, lty = "dashed") +  
+#     geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
+#     xlab("Distance from parent sequence\ndue to substitution mutation") + 
+#     ylab("Distance from parent sequence\ndue to deletion mutation") +
+#     scale_color_continuous(low = "blue", high = "orange") +
+#     coord_fixed(xlim = c(0, 1)),
+#   ncol = 3
+# )
+
+
+(
+  full_join(
+    clustal_substitutions |> mutate(value.scaled = value / nchar(beta_seq[[2]])), 
+    clustal_deletions |> mutate(value.scaled = value / nchar(beta_seq[[2]])), 
+    by = c("Var1", "Mutation count", "Mutation percent"), 
+    suffix=c(".S", ".D")
+  ) |>
+    ggplot() + 
+    geom_point(aes(x=value.scaled.S, y=value.scaled.D, col = `Mutation percent`), alpha = .75, size = 3) + 
+    theme_minimal() +  
+    geom_abline(slope = 1, intercept = 0, lty = "dashed") +  
+    geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
+    xlab("") + 
+    ylab("Distance from parent sequence\ndue to deletion mutation") +
+    scale_color_continuous(low = "blue", high = "orange") + guides(color = "none") +
+    coord_fixed(xlim = c(0, 1), ylim = c(0, 1)) 
+) + 
+  (
+    full_join(
+      sub_vol,
+      del_vol, 
+      by = c("Mutation count", "Mutation percent", "bandwidth_value"), 
+      suffix = c(".S", ".D")
+    ) |> 
+      ggplot() + 
+      geom_point(aes(x=value.scaled.S, y=value.scaled.D, col = `Mutation percent`), alpha = .75, size = 3) + 
+      scale_color_continuous("Mutation\npercent", low = "blue", high = "orange") + 
+      theme_minimal() +  
+      geom_abline(slope = 1, intercept = 0, lty =2) +  
+      geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
+      xlab("Distance from parent sequence\ndue to substitution mutation") + 
+      ylab("") +
+      guides(color = "none") +
+      coord_fixed(xlim = c(0, 1)) + theme(axis.text.y = element_blank())
+  ) + 
+  (
+    full_join(
+      cgr_substitutions, cgr_deletions, 
+      by = c("Var1", "Mutation count", "Mutation percent", "frac"), 
+      suffix=c(".S", ".D")
+    ) |>
+      ggplot() + 
+      geom_point(aes(x=value.scaled.S, y=value.scaled.D, col = `Mutation percent`), alpha = .75, size = 3) + 
+      theme_minimal() +  
+      geom_abline(slope = 1, intercept = 0, lty = "dashed") +  
+      geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
+      xlab("") + 
+      ylab("") +
+      scale_color_continuous(low = "blue", high = "orange") +
+      coord_fixed(xlim = c(0, 1)) + theme(axis.text.y = element_blank())
+  )+ patchwork::plot_layout(ncol = 3)
+
+
+
+ggsave("mutation_aggregation.png", width =3*4.5, height = 4.5, dpi = 300)
 
 ```
 
@@ -691,7 +1033,7 @@ full_join(
 
 ```
 
-```{r}
+```{r cgr2_ss_n, cache = T, eval = F, dpi = 300}
 
 
 fracs <- seq(0.05, 1, by = .05)
@@ -722,8 +1064,8 @@ e1 <- proc.time()
 
 cgr2_output_list.rbind <- do.call("rbind", cgr2_output_list)
 
-cgr2_substitutions <- cgr_output_list.rbind |> filter(`Mutation type` == "Substitutions") 
-cgr2_deletions <- cgr_output_list.rbind |> filter(`Mutation type` == "Deletions") 
+cgr2_substitutions <- cgr2_output_list.rbind |> filter(`Mutation type` == "Substitutions") 
+cgr2_deletions <- cgr2_output_list.rbind |> filter(`Mutation type` == "Deletions") 
 
 # Figure 
 # Plots of the distance from the parent sequence as a function of the 
@@ -757,4 +1099,7 @@ full_join(
   scale_color_continuous(low = "blue", high = "orange")
 
 ```
+
+```{r}
+
 ```
