@@ -489,6 +489,109 @@ cgr_distance3<-
     )
   }
 
+cgr_distance4 <- function(seq_cg, frac = 1/15, cs = T, power = 1, normalize = F){
+  
+  combine_distances <- function(dist_list, p){
+    # Power mean: arithmetic p = 1, geometric p = 0, harmonic p = -1, quadratic p = 2
+    # As p -> infinity, power mean -> max; 
+    # as p -> -infinity, power mean -> min. 
+    n <- length(dist_list)
+    Reduce(`+`, lapply(dist_list, function(x){(1/n) * x^p}))^(1/p)
+  }
+  
+  center_scale <- function(hist_mat){
+    apply(hist_mat, 2, function(x) {(x- mean(x)) / sd(x)}) 
+  }
+  
+  cen_scal <- identity
+  norm <- identity
+  if(cs) cen_scal <- center_scale
+  if(normalize) norm <- function(x){x / max(x)}
+  
+  bins <- ceiling(frac * (mean(sapply(seq_cg, nrow)) - 1))
+  
+  shape_features <- list(
+    lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(1, 0, 0))),
+    lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(0, 1, 0))),
+    lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(0, 0, 1))),
+    lapply(seq_cg, by3roworientedangle4, v = c(1, 0, 0)),
+    lapply(seq_cg, by3roworientedangle4, v = c(0, 1, 0)),
+    lapply(seq_cg, by3roworientedangle4, v = c(0, 0, 1)),
+    lapply(seq_cg, orienteddistance1, v = c(1, 0, 0)),
+    lapply(seq_cg, orienteddistance1, v = c(0, 1, 0)),
+    lapply(seq_cg, orienteddistance1, v = c(0, 0, 1)),
+    lapply(seq_cg, by3roworienteddistance4, v = c(1, 0, 0)),
+    lapply(seq_cg, by3roworienteddistance4, v = c(0, 1, 0)),
+    lapply(seq_cg, by3roworienteddistance4, v = c(0, 0, 1))
+  ) |> 
+    lapply(feature_histograms, bin_count = bins) |> 
+    lapply(function(x) t(apply(x, 1, function(x) x / sum(x)))) |>
+    lapply(function(x) x |> cen_scal() |> dist() |> as.matrix() |> norm())
+  
+  coord_features <- 
+    coordinate_histograms(seq_cg,  bin_count = bins) |> 
+    split_coord_histograms(ncol(seq_cg[[1]])) |>
+    lapply(function(x) x |> cen_scal() |> dist() |> as.matrix() |> norm())
+  
+  combine_distances(
+    c(shape_features, coord_features), 
+    p = power
+  )
+}
+
+cgr_distance5 <- function(seq_cg, frac = 1/15, cs = T, power = 1, normalize = F){
+  
+  combine_distances <- function(dist_list, p){
+    # Power mean: arithmetic p = 1, geometric p = 0, harmonic p = -1, quadratic p = 2
+    # As p -> infinity, power mean -> max; 
+    # as p -> -infinity, power mean -> min. 
+    n <- length(dist_list)
+    Reduce(`+`, lapply(dist_list, function(x){(1/n) * x^p}))^(1/p)
+  }
+  
+  center_scale <- function(hist_mat){
+    sc1 <- apply(hist_mat, 1, function(x) {(x- mean(x)) / sd(x)}) |> t()
+    apply(sc1, 2, function(x) {(x- mean(x)) / sd(x)})
+  }
+  
+  cen_scal <- identity
+  norm <- identity
+  if(cs) cen_scal <- center_scale
+  if(normalize) norm <- function(x){x / max(x)}
+  
+  bins <- ceiling(frac * (mean(sapply(seq_cg, nrow)) - 1))
+  
+  shape_features <- list(
+    lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(1, 0, 0))),
+    lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(0, 1, 0))),
+    lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(0, 0, 1))),
+    lapply(seq_cg, by3roworientedangle4, v = c(1, 0, 0)),
+    lapply(seq_cg, by3roworientedangle4, v = c(0, 1, 0)),
+    lapply(seq_cg, by3roworientedangle4, v = c(0, 0, 1)),
+    lapply(seq_cg, orienteddistance1, v = c(1, 0, 0)),
+    lapply(seq_cg, orienteddistance1, v = c(0, 1, 0)),
+    lapply(seq_cg, orienteddistance1, v = c(0, 0, 1)),
+    lapply(seq_cg, by3roworienteddistance4, v = c(1, 0, 0)),
+    lapply(seq_cg, by3roworienteddistance4, v = c(0, 1, 0)),
+    lapply(seq_cg, by3roworienteddistance4, v = c(0, 0, 1))
+  ) |> 
+    lapply(feature_histograms, bin_count = bins) |> 
+    lapply(function(x) t(apply(x, 1, function(x) x / sum(x)))) |>
+    lapply(function(x) x |> cen_scal() |> dist() |> as.matrix() |> norm())
+  
+  coord_features <- 
+    coordinate_histograms(seq_cg,  bin_count = bins) |> 
+    split_coord_histograms(ncol(seq_cg[[1]])) |>
+    lapply(function(x) x |> cen_scal() |> dist() |> as.matrix() |> norm())
+  
+  combine_distances(
+    c(shape_features, coord_features), 
+    p = power
+  )
+}
+
+
+
 
 #=====================================================================
 # Function to implement volume intersection method
