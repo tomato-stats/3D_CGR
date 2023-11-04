@@ -2,13 +2,7 @@ library(ape)
 
 # Simulated sequences
 
-# sim_fas <- read.FASTA("./data/sim.fas") |> as.character()
-# sim_fas <- lapply(sim_fas, paste, collapse="")
-# sim_fas <- gsub("-", "", sim_fas)
-# names(sim_fas) <- c("A", "B")
-
-
-syn_fas <- read.FASTA("./data/syn.fas") |> as.character() 
+syn_fas <- read.FASTA("./syn.fas") |> as.character() 
 syn_fas <- lapply(syn_fas, paste, collapse="") 
 syn_fas <- sapply(syn_fas, toupper)
 names(syn_fas) <- gsub("B/", "", names(syn_fas))
