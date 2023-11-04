@@ -71,15 +71,12 @@ hm <- function(distances, ...){
 
 clustal_omega(beta_seq) |> hm() 
 clustal_omega(beta_seq) |> bionj() |> root("gallus") |> plot()
-clustal_omega(beta_seq) |> fastme.bal() |> root("gallus") |> plot()
 
 clustal_omega(nadh) |> hm(trans = "exp") # transformation of color to facilitate visualization
 clustal_omega(nadh) |> bionj() |> root("Saimiri sciureus") |> plot()
-clustal_omega(nadh) |> fastme.bal() |> root("Saimiri sciureus") |> plot()
 
 clustal_omega(syn_fas) |> hm()
 clustal_omega(syn_fas) |> bionj() |> plot() 
-clustal_omega(syn_fas) |> fastme.bal() |> plot()
 
 ```
 
