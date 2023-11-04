@@ -27,8 +27,8 @@ knitr::opts_chunk$set(echo = TRUE)
 #   assumes "3D_CGR/paper code" is the current working directory
 #=====================================================================
 
-source("../data/sequences.R")
-source("../R/functions.R")
+source("./data/sequences.R")
+source("./R/functions.R")
 
 library(reshape2)
 library(msa) # From Bioconductor
