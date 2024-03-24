@@ -203,6 +203,60 @@ full_join(
   scale_color_continuous(low = "blue", high = "orange")
 
 ```
+
+## Kmer distance results
+
+```{r}
+
+all_mutations.str_split <- str_split(all_mutations, "")
+names(all_mutations.str_split) <- names(all_mutations)
+kmer::kdistance(all_mutations.str_split)
+
+kmer_output <-
+  kmer::kdistance(all_mutations.str_split) |> as.matrix() |> melt() |> 
+  mutate(
+    `Mutation count` = as.numeric(gsub("(Substitutions|Deletions) = ", "", Var2)),
+    `Mutation percent` = `Mutation count`/nchar(parent_dna),
+    `Mutation type` = gsub(" = [0-9]*", "", Var2)
+  ) 
+
+
+kmer_substitutions <- kmer_output |> filter(`Mutation type` == "Substitutions") 
+kmer_deletions <- kmer_output |> filter(`Mutation type` == "Deletions") 
+
+# Figure 
+# Plots of the distance from the parent sequence as a function of the 
+# percent of DNA that is mutated. 
+kmer_output |> 
+  ggplot(aes(x=`Mutation percent`, y = value,col = `Mutation type`, pch = `Mutation type`)) + 
+  geom_point() + 
+  geom_line(stat = "smooth", method="loess",
+            method.args = list(degree = 1), se = F, alpha = .25, lwd = 2, span = .5) +
+  theme_minimal() + geom_vline(xintercept = 0) + geom_hline(yintercept = 0) +
+  ylab("Distance") + theme(legend.position = "bottom")
+
+# Figure 
+# Distance from parent sequence due to deletion mutation v 
+# distance from parent sequence due to substitution mutation, 
+# colored by proportion of sequence that has been mutated.
+full_join(
+  kmer_substitutions, kmer_deletions, 
+  by = c("Var1", "Mutation count", "Mutation percent"), 
+  suffix=c(".S", ".D")
+) |>
+  ggplot() + 
+  geom_point(aes(x=value.S, y=value.D, col = `Mutation percent`), alpha = .75, size = 3) + 
+  theme_minimal() +  
+  geom_abline(slope = 1, intercept = 0, lty = "dashed") +  
+  geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
+  xlab("Distance from parent sequence\ndue to substitution mutation") + 
+  ylab("Distance from parent sequence\ndue to deletion mutation") +
+  scale_color_continuous(low = "blue", high = "orange")
+
+
+```
+
+
 ## CGR shape signature distance results
 
 ```{r cgr2_ss_1, dpi = 300, cache = T}
