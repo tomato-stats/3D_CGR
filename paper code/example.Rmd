@@ -18,6 +18,9 @@ knitr::opts_chunk$set(echo = TRUE)
 source("./data/sequences.R")
 source("./R/functions.R")
 
+require(kmer)
+require(grid)
+require(gtable)
 library(reshape2)
 library(msa) # From Bioconductor
 library(ape)
@@ -35,18 +38,6 @@ library(ggdendro)
 # can take a while to run.
 # By: Stephanie Young <syoung2@sdsu.edu> <syoung49@its.jnj.com>
 #####################################################################
-
-#=====================================================================
-# Clustal Omega + p-distance results for comparison
-#=====================================================================
-
-# Function to align the sequences
-
-clustal_omega <- function(dna_seq, outgroup = NULL){
-  msa(dna_seq, type = "dna", method = "ClustalOmega", order = "input") |> 
-    msaConvert(type = "ape::DNAbin") |> ape::dist.gene() |> # can also use dist.p() from the phangorn package. 
-    (\(x)x/max(x))() # distances rescaled because bionj does not like distances > 100
-}
 
 # Heatmap function
 
@@ -68,17 +59,63 @@ hm <- function(distances, ...){
     coord_fixed()
 }
 
+#=====================================================================
+# Clustal Omega + p-distance results for comparison
+#=====================================================================
+
+# Function to align the sequences
+
+clustal_omega <- function(dna_seq, outgroup = NULL){
+  msa(dna_seq, type = "dna", method = "ClustalOmega", order = "input") |> 
+    msaConvert(type = "ape::DNAbin") |> ape::dist.gene() |> # can also use dist.p() from the phangorn package. 
+    (\(x)x/max(x))() # distances rescaled to be between 0 and 1 because bionj does not like distances > 100
+}
+
 
 clustal_omega(beta_seq) |> hm() 
 clustal_omega(beta_seq) |> bionj() |> root("gallus") |> plot()
+clustal_omega(beta_seq) |> upgma() |> root("gallus") |> plot()
+clustal_omega(beta_seq) |> wpgma() |> root("gallus") |> plot()
 
-clustal_omega(nadh) |> hm(trans = "exp") # transformation of color to facilitate visualization
-clustal_omega(nadh) |> bionj() |> root("Saimiri sciureus") |> plot()
+clustal_omega(nadh) |> hm()
+clustal_omega(nadh) |> bionj() |> root("Saimiri sciureus") |> plot() # bionj does not like distances > 100
+clustal_omega(nadh) |> upgma() |> root("Saimiri sciureus") |> plot()
+clustal_omega(nadh) |> wpgma() |> root("Saimiri sciureus") |> plot()
 
 clustal_omega(syn_fas) |> hm()
 clustal_omega(syn_fas) |> bionj() |> plot() 
+clustal_omega(syn_fas) |> upgma() |> plot() 
+clustal_omega(syn_fas) |> wpgma() |> plot() 
+
+#=====================================================================
+# kmer-distance results for comparison 
+#=====================================================================
+
+kmer_dist <- function(seq_string, ...){
+  kmer_seq <- kmer::kdistance(str_split(seq_string, ""), ...)
+  kmer_seq <- as.matrix(kmer_seq)
+  colnames(kmer_seq) <- names(seq_string)
+  rownames(kmer_seq) <- names(seq_string)
+  kmer_seq
+}
+
+kmer_dist(beta_seq) |> hm() 
+kmer_dist(beta_seq) |> bionj() |> root("gallus") |> plot()
+kmer_dist(beta_seq) |> upgma() |> root("gallus") |> plot()
+kmer_dist(beta_seq) |> wpgma() |> root("gallus") |> plot()
+
+kmer_dist(nadh) |> hm() 
+kmer_dist(nadh) |> bionj() |> root("Saimiri sciureus") |> plot()
+kmer_dist(nadh) |> upgma() |> root("Saimiri sciureus") |> plot()
+kmer_dist(nadh) |> wpgma() |> root("Saimiri sciureus") |> plot()
+
+kmer_dist(syn_fas) |> hm() 
+kmer_dist(syn_fas) |> bionj() |> plot()
+kmer_dist(syn_fas) |> upgma() |> plot()
+kmer_dist(syn_fas) |> wpgma() |> plot()
 
 ```
+
 
 ```{r}
 
@@ -86,27 +123,34 @@ clustal_omega(syn_fas) |> bionj() |> plot()
 # Shape signature results 
 #=====================================================================
 
+# The frac option determines the number of bins as a fraction of the average sequence length
+# So if average sequence length is 100 and frac is 1/15, then the number of bins is 6.66 --> 7. 
+# Each feature histogram contributes one distance metric; 
+# the normalize option scales the distances to be between 0 and 1 for every feature.
+# This gives each feature equal weight in the distance metric. If not desired, this option
+# can be turned off. 
+
 beta_cg <- lapply(beta_seq, seq_to_cgr)  
 nadh_cg <- lapply(nadh, seq_to_cgr)  
 syn_cg <- lapply(syn_fas, seq_to_cgr) 
 
-cgr_distance2(beta_cg, frac = 1) |> hm()
-cgr_distance2(beta_cg, frac = 1) |> bionj() |> ape::root("gallus") |> plot()
+cgr_distance2(beta_cg, frac = 1, normalize = T) |> hm()
+cgr_distance2(beta_cg, frac = 1, normalize = T) |> bionj() |> ape::root("gallus") |> plot()
 
-cgr_distance2(beta_cg, frac = 1/15) |> hm()
-cgr_distance2(beta_cg, frac = 1/15) |> bionj() |> ape::root("gallus") |> plot()
+cgr_distance2(beta_cg, frac = 1/15, normalize = T) |> hm()
+cgr_distance2(beta_cg, frac = 1/15, normalize = T) |> bionj() |> ape::root("gallus") |> plot()
 
-cgr_distance2(nadh_cg, frac = 1) |> hm()
-cgr_distance2(nadh_cg, frac = 1) |> bionj() |> root("Saimiri sciureus") |> plot()
+cgr_distance2(nadh_cg, frac = 1, normalize = T) |> hm()
+cgr_distance2(nadh_cg, frac = 1, normalize = T) |> bionj() |> root("Saimiri sciureus") |> plot()
 
-cgr_distance2(nadh_cg, frac = 1/15) |> hm()
-cgr_distance2(nadh_cg, frac = 1/15) |> bionj() |> root("Saimiri sciureus") |> plot()
+cgr_distance2(nadh_cg, frac = 1/15, normalize = T) |> hm()
+cgr_distance2(nadh_cg, frac = 1/15, normalize = T) |> bionj() |> root("Saimiri sciureus") |> plot()
 
-cgr_distance2(syn_cg, frac = 1) |> hm()
-cgr_distance2(syn_cg, frac = 1) |> bionj() |> plot()
+cgr_distance2(syn_cg, frac = 1, normalize = T) |> hm()
+cgr_distance2(syn_cg, frac = 1, normalize = T) |> bionj() |> plot()
 
-cgr_distance2(syn_cg, frac = 1/15) |> hm()
-cgr_distance2(syn_cg, frac = 1/15) |> bionj() |> plot()
+cgr_distance2(syn_cg, frac = 1/15, normalize = T) |> hm()
+cgr_distance2(syn_cg, frac = 1/15, normalize = T) |> bionj() |> plot()
   
 ```
 
@@ -143,7 +187,7 @@ nadh_tanimoto |> (\(x) 1 - x)() |> bionj() |> root("Saimiri sciureus") |> plot()
 
 syn_tanimoto <- 
   volume_intersection_tanimoto(
-    lapply(sim_cg, function(x) x[-1,]), # Drop the origin point
+    lapply(syn_cg, function(x) x[-1,]), # Drop the origin point
     hv_args = list(samples.per.point = 5000), 
     vi_args = list(num.points.max = 150000)) 
 
@@ -187,20 +231,41 @@ align_plots1 <- function (...) {
   grid::grid.draw(combined)
 }
 
+
+align_plots1 <- function (...) {
+  pl <- list(...)
+  stopifnot(do.call(all, lapply(pl, inherits, "gg")))
+  gl <- lapply(pl, ggplotGrob)
+  bind2 <- function(x, y) gtable:::cbind_gtable(x, y, "first")
+  combined1 <- Reduce(bind2, gl[-1], gl[[1]])
+  combined2 <- gtable:::rbind_gtable(
+    combined1[1:(nrow(combined1) / 2), ],
+    combined1[((nrow(combined1) / 2) + 1) : nrow(combined1), ]
+  )
+  wl <- lapply(gl, "[[", "heights")
+  combined2$heights <- do.call(grid::unit.pmax,  wl)
+  grid::grid.newpage()
+  grid::grid.draw(combined2)
+}
+
+
 align_plots1(
     clustal_omega(beta_seq) |> hm.vir(),
+    kmer_beta |> (\(x) x / max(x))() |> hm.vir(),
     cgr_distance2(beta_cg, frac = 1/15, normalize = T) |> (\(x) x / max(x))() |> hm.vir(), 
     beta_tanimoto |> (\(x) 1 - x)()  |> (\(x) x / max(x))() |> hm.vir()
 )
 
 align_plots1(
   clustal_omega(nadh) |> hm.vir(),
+  kmer_nadh |> (\(x) x / max(x))() |> hm.vir(),
   cgr_distance2(nadh_cg, frac = 1/15, normalize = T) |> (\(x) x / max(x))() |> hm.vir(), 
   nadh_tanimoto |> (\(x) 1 - x)() |> (\(x) x / max(x))() |> hm.vir() 
 )
 
 align_plots1(
   clustal_omega(syn_fas) |> hm.vir(),
+  kmer_syn |> (\(x) x / max(x))() |> hm.vir(),
   cgr_distance2(syn_cg, frac = 1/15, normalize = T)|> (\(x) x / max(x))()  |> hm.vir() , 
   syn_tanimoto |> (\(x) 1 - x)() |> (\(x) x / max(x))() |> hm.vir()
 )
@@ -215,20 +280,47 @@ library(ggtree)
 library(patchwork)
 
 (
-  clustal_omega(beta_seq) |> bionj() |> root("gallus") |> ggtree() + geom_tiplab()+ coord_cartesian(xlim = c(0, 1)) +
-  cgr_distance2(beta_cg, frac = 1/15, normalize = T) |> (\(x) x / max(x))() |> bionj() |> root("gallus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, 1)) +
-  beta_tanimoto |> (\(x) 1 - x)() |> bionj() |> ape::root("gallus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, 1)) +
-  clustal_omega(nadh) |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, 1)) +
-  cgr_distance2(nadh_cg, frac = 1/15) |> (\(x) x / max(x))() |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, 1)) +
-  nadh_tanimoto |> (\(x) 1 - x)() |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, 1)) +
-  clustal_omega(syn_fas) |> bionj() |> root("Original") |> ggtree(ladderize = F) + geom_tiplab() + coord_cartesian(xlim = c(0, 1)) +
-  cgr_distance2(syn_cg, frac = 1/15) |> bionj()|> root("Original") |> ggtree(ladderize = F) + geom_tiplab() + coord_cartesian(xlim = c(0, 1)) +
-  syn_tanimoto |> (\(x) 1 - x)() |> (\(x) x / max(x))() |> bionj()|> root("Original") |> ggtree(ladderize = F) + geom_tiplab() + coord_cartesian(xlim = c(0, 1)) 
-) + patchwork::plot_layout(ncol = 3)
+  clustal_omega(beta_seq) |> bionj() |> root("gallus") |> ggtree() + geom_tiplab()+ coord_cartesian(xlim = c(0, .7)) +
+  kmer_dist(beta_seq)  |> bionj() |> root("gallus") |> ggtree() + geom_tiplab()+ coord_cartesian(xlim = c(0, .35)) +
+  beta_tanimoto |> (\(x) 1 - x)() |> bionj() |> ape::root("gallus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, .65)) +
+  cgr_distance2(beta_cg, frac = 1/15, normalize = T) |> bionj() |> root("gallus") |> ggtree() + geom_tiplab() +  coord_cartesian(xlim = c(0, .65)) +
+    
+  clustal_omega(nadh) |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, .75)) +
+  kmer_dist(nadh)  |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab()+ coord_cartesian(xlim = c(0, .18)) +
+  nadh_tanimoto |> (\(x) 1 - x)() |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, .75)) +
+  cgr_distance2(nadh_cg, frac = 1/15, normalize = T) |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab() +  coord_cartesian(xlim = c(0, .75))  +
+    
+  clustal_omega(syn_fas) |> bionj() |> root("Original") |> ggtree(ladderize = F) + geom_tiplab() + coord_cartesian(xlim = c(0, 1.02)) +
+  kmer_dist(syn_fas) |> bionj() |> root("Original") |> ggtree() + geom_tiplab()+  coord_cartesian(xlim = c(0, .022)) + 
+  syn_tanimoto |> (\(x) 1 - x)() |> bionj()|> root("Original") |> ggtree(ladderize = F) + geom_tiplab() + coord_cartesian(xlim = c(0, .2)) +
+  cgr_distance2(syn_cg, frac = 1/15, normalize = T) |> bionj()|> root("Original") |> ggtree(ladderize = F) + geom_tiplab() + coord_cartesian(xlim = c(0, .9)) 
+) + patchwork::plot_layout(ncol = 2, byrow = T)
 
 
 ```
 
+
+```{r}
+
+cowplot::plot_grid(
+  clustal_omega(beta_seq) |> bionj() |> root("gallus") |> ggtree() + geom_tiplab()+ coord_cartesian(xlim = c(0, .7)),
+  kmer_dist(beta_seq)  |> bionj() |> root("gallus") |> ggtree() + geom_tiplab()+ coord_cartesian(xlim = c(0, .35)),
+  beta_tanimoto |> (\(x) 1 - x)() |> bionj() |> ape::root("gallus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, .65)),
+  cgr_distance2(beta_cg, frac = 1/15, normalize = T) |> (\(x) x / max(x))() |> bionj() |> root("gallus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, .65)), 
+  
+  clustal_omega(nadh) |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, .75)),
+  kmer_dist(nadh)  |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab()+ coord_cartesian(xlim = c(0, .18)) ,
+  nadh_tanimoto |> (\(x) 1 - x)() |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, .75)),
+  cgr_distance2(nadh_cg, frac = 1/15, normalize = T) |> (\(x) x / max(x))() |> bionj() |> root("Saimiri sciureus") |> ggtree() + geom_tiplab() + coord_cartesian(xlim = c(0, .75)),
+  
+  clustal_omega(syn_fas) |> bionj() |> root("Original") |> ggtree(ladderize = F) + geom_tiplab() + coord_cartesian(xlim = c(0, 1.02)),
+  kmer_dist(syn_fas) |> bionj() |> root("Original") |> ggtree() + geom_tiplab()+  coord_cartesian(xlim = c(0, .022)), 
+  syn_tanimoto |> (\(x) 1 - x)() |> bionj()|> root("Original") |> ggtree(ladderize = F) + geom_tiplab() + coord_cartesian(xlim = c(0, .2)),
+  cgr_distance2(syn_cg, frac = 1/15, normalize = T) |> bionj()|> root("Original") |> ggtree(ladderize = F) + geom_tiplab() + coord_cartesian(xlim = c(0, .6)),
+  align = "hv", axis = "lr", ncol = 2, nrow = 6
+)
+
+```
 
 ```{r}
 
