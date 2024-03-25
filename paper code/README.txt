@@ -8,6 +8,7 @@ The purpose of this analysis was to:
 
 This directory contains:
 
-- example.R = the script to produce the phylogenetic tree results and various explanatory plots in the paper
-- explorations/ = directory containing the scripts to replicate the explorations and plots regarding the relationship between different mutation types
+- example.Rmd = the script to produce the phylogenetic tree results and various explanatory plots in the paper
+- simulations.Rmd = the script to produce the simulation results comparing substitution and deletion mutation effects on overall distance between the a sequence and its progenitor sequence
 - data/ = directory containing the DNA sequences used to generate the plots and results
+- R/ = directory containing functions implementing the 3D CGR
