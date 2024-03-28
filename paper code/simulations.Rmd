@@ -213,12 +213,15 @@ names(all_mutations.str_split) <- names(all_mutations)
 kmer::kdistance(all_mutations.str_split)
 
 kmer_output <-
-  kmer::kdistance(all_mutations.str_split) |> as.matrix() |> melt() |> 
+  kmer::kdistance(all_mutations.str_split, k = 6, method = "euclidean") |> as.matrix() |> melt() |> 
+  filter(Var1 == "Parent" & Var2 != "Parent") |> 
   mutate(
     `Mutation count` = as.numeric(gsub("(Substitutions|Deletions) = ", "", Var2)),
     `Mutation percent` = `Mutation count`/nchar(parent_dna),
     `Mutation type` = gsub(" = [0-9]*", "", Var2)
-  ) 
+  )  |> 
+  mutate(value.scaled = value / max(value))
+
 
 
 kmer_substitutions <- kmer_output |> filter(`Mutation type` == "Substitutions") 
@@ -419,66 +422,3 @@ full_join(
   ylab("Distance from parent sequence\ndue to deletion mutation")
 
 ```
-
-
-```{r}
-
-# Plot of combined results
-# Distances scaled to be between zero and 1 to aid in visual comparison
-
-
-(
-  full_join(
-    clustal_substitutions |> mutate(value.scaled = value / nchar(beta_seq[[2]])), 
-    clustal_deletions |> mutate(value.scaled = value / nchar(beta_seq[[2]])), 
-    by = c("Var1", "Mutation count", "Mutation percent"), 
-    suffix=c(".S", ".D")
-  ) |>
-    ggplot() + 
-    geom_point(aes(x=value.scaled.S, y=value.scaled.D, col = `Mutation percent`), alpha = .75, size = 3) + 
-    theme_minimal() +  
-    geom_abline(slope = 1, intercept = 0, lty = "dashed") +  
-    geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
-    xlab("") + 
-    ylab("Distance from parent sequence\ndue to deletion mutation") +
-    scale_color_continuous(low = "blue", high = "orange") + guides(color = "none") +
-    coord_fixed(xlim = c(0, 1), ylim = c(0, 1)) 
-) + 
-  (
-    full_join(
-      sub_vol,
-      del_vol, 
-      by = c("Mutation count", "Mutation percent", "bandwidth_value"), 
-      suffix = c(".S", ".D")
-    ) |> 
-      ggplot() + 
-      geom_point(aes(x=value.scaled.S, y=value.scaled.D, col = `Mutation percent`), alpha = .75, size = 3) + 
-      scale_color_continuous("Mutation\npercent", low = "blue", high = "orange") + 
-      theme_minimal() +  
-      geom_abline(slope = 1, intercept = 0, lty =2) +  
-      geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
-      xlab("Distance from parent sequence\ndue to substitution mutation") + 
-      ylab("") +
-      guides(color = "none") +
-      coord_fixed(xlim = c(0, 1)) + theme(axis.text.y = element_blank())
-  ) + 
-  (
-    full_join(
-      cgr_substitutions, cgr_deletions, 
-      by = c("Var1", "Mutation count", "Mutation percent", "frac"), 
-      suffix=c(".S", ".D")
-    ) |>
-      ggplot() + 
-      geom_point(aes(x=value.scaled.S, y=value.scaled.D, col = `Mutation percent`), alpha = .75, size = 3) + 
-      theme_minimal() +  
-      geom_abline(slope = 1, intercept = 0, lty = "dashed") +  
-      geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
-      xlab("") + 
-      ylab("") +
-      scale_color_continuous(low = "blue", high = "orange") +
-      coord_fixed(xlim = c(0, 1)) + theme(axis.text.y = element_blank())
-  )+ patchwork::plot_layout(ncol = 3)
-
-
-```
-
