@@ -212,16 +212,19 @@ all_mutations.str_split <- str_split(all_mutations, "")
 names(all_mutations.str_split) <- names(all_mutations)
 kmer::kdistance(all_mutations.str_split)
 
-kmer_output <-
-  kmer::kdistance(all_mutations.str_split, k = 6, method = "euclidean") |> as.matrix() |> melt() |> 
-  filter(Var1 == "Parent" & Var2 != "Parent") |> 
-  mutate(
-    `Mutation count` = as.numeric(gsub("(Substitutions|Deletions) = ", "", Var2)),
-    `Mutation percent` = `Mutation count`/nchar(parent_dna),
-    `Mutation type` = gsub(" = [0-9]*", "", Var2)
-  )  |> 
-  mutate(value.scaled = value / max(value))
+kmer_output <- data.frame()
 
+for(i in 3:9){
+  temp <- kmer::kdistance(all_mutations.str_split, k = i, method = "euclidean") |> as.matrix() |> melt() |> 
+    filter(Var1 == "Parent" & Var2 != "Parent") |> 
+    mutate(
+      `Mutation count` = as.numeric(gsub("(Substitutions|Deletions) = ", "", Var2)),
+      `Mutation percent` = `Mutation count`/nchar(parent_dna),
+      `Mutation type` = gsub(" = [0-9]*", "", Var2)
+    )  |> 
+    mutate(value.scaled = value / max(value), k = i)
+  kmer_output <- rbind(kmer_output, temp)
+}
 
 
 kmer_substitutions <- kmer_output |> filter(`Mutation type` == "Substitutions") 
@@ -236,19 +239,19 @@ kmer_output |>
   geom_line(stat = "smooth", method="loess",
             method.args = list(degree = 1), se = F, alpha = .25, lwd = 2, span = .5) +
   theme_minimal() + geom_vline(xintercept = 0) + geom_hline(yintercept = 0) +
-  ylab("Distance") + theme(legend.position = "bottom")
+  ylab("Distance") + theme(legend.position = "bottom") + facet_wrap(~k)
 
 # Figure 
 # Distance from parent sequence due to deletion mutation v 
 # distance from parent sequence due to substitution mutation, 
-# colored by proportion of sequence that has been mutated.
+# colored by k parameter
 full_join(
   kmer_substitutions, kmer_deletions, 
-  by = c("Var1", "Mutation count", "Mutation percent"), 
+  by = c("Var1", "Mutation count", "Mutation percent", "k"), 
   suffix=c(".S", ".D")
 ) |>
   ggplot() + 
-  geom_point(aes(x=value.S, y=value.D, col = `Mutation percent`), alpha = .75, size = 3) + 
+  geom_point(aes(x=value.S, y=value.D, col = `k`), alpha = .75, size = 3) + 
   theme_minimal() +  
   geom_abline(slope = 1, intercept = 0, lty = "dashed") +  
   geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
@@ -282,7 +285,7 @@ cgr_output <-
     `Mutation percent` = `Mutation count`/nchar(parent_dna),
     `Mutation type` = gsub(" = [0-9]*", "", Var2)
   ) |> 
-  group_by(`Mutation type`, frac) |> 
+  group_by(frac) |> 
   mutate(value.scaled = value / max(value))
 
 
@@ -413,6 +416,22 @@ full_join(
   suffix = c(".S", ".D")
 ) |>
   ggplot() + 
+  geom_point(aes(x=value.scaled.S, y=value.scaled.D, col = bandwidth_value), alpha = .5) + 
+  scale_color_continuous("Bandwidth", low = "blue", high = "orange", trans = "log") + 
+  theme_minimal() +  
+  geom_abline(slope = 1, intercept = 0, lty =2) +  
+  geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
+  xlab("Distance from parent sequence\ndue to substitution mutation") + 
+  ylab("Distance from parent sequence\ndue to deletion mutation")
+
+
+# Without rescaling 
+full_join(
+  sub_vol, del_vol, 
+  by = c("Mutation count", "Mutation percent", "bandwidth_value"), 
+  suffix = c(".S", ".D")
+) |>
+  ggplot() + 
   geom_point(aes(x=1-tanimoto.S, y=1-tanimoto.D, col = bandwidth_value), alpha = .5) + 
   scale_color_continuous("Bandwidth", low = "blue", high = "orange", trans = "log") + 
   theme_minimal() +  
@@ -420,5 +439,26 @@ full_join(
   geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
   xlab("Distance from parent sequence\ndue to substitution mutation") + 
   ylab("Distance from parent sequence\ndue to deletion mutation")
+
+
+```
+
+
+```{r}
+ full_join(
+            sub_vol,
+            del_vol, 
+            by = c("Mutation count", "Mutation percent", "bandwidth_value"), 
+            suffix = c(".S", ".D")
+        ) |>
+            rename(`Distance from parent sequence\ndue to deletion mutation` = value.scaled.D,
+                   `Distance from parent sequence\ndue to substitution mutation` = value.scaled.S) |> 
+            rename(`Mutation\npercent` = `Mutation percent`) |> 
+            ggplot() + 
+            geom_point(aes(x=`Distance from parent sequence\ndue to substitution mutation`, y=`Distance from parent sequence\ndue to deletion mutation`, col = `bandwidth_value`), alpha = .75, size = 3) + 
+            scale_color_continuous("Bandwidth", high = "blue", low = "orange") + 
+            theme_minimal() +  
+            geom_abline(slope = 1, intercept = 0, lty =2) +  geom_vline(xintercept = 1, col = "transparent") + geom_hline(yintercept = 1, col = "transparent") +
+            geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + facet_wrap(~"volume intersection")+ theme(axis.text.y = element_blank(), strip.text = element_text(size =rel(1.15)), legend.position = c(0.87, 0.25), legend.key.size = unit(.15, 'cm'), legend.text = element_text(size = rel(.5)), legend.title = element_text(size = rel(.75)))
 
 ```
