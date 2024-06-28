@@ -1,0 +1,275 @@
+---
+title: "Alternative baseline method simulations"
+output: html_document
+date: "2024-06-28"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r header}
+
+#####################################################################
+# Comparing the effect of mutation accumulation between
+# substitution and deletion on the distance from the parent sequence
+# You can shorten the run time a bit by decreasing the number 
+# of bin counts/bandwidths checked and/or simulations
+# By: Stephanie Young <syoung2@sdsu.edu> <syoung49@its.jnj.com>
+#####################################################################
+
+```
+
+```{r libraries, message = F}
+
+#=====================================================================
+# Loading data and packages -- 
+#   assumes "3D_CGR/paper code" is the current working directory
+#=====================================================================
+
+source("./data/sequences.R")
+source("./R/functions.R")
+
+library(reshape2)
+library(msa) # From Bioconductor
+library(ape)
+library(phangorn)
+library(tidyverse)
+library(ggplot2)
+library(ggdendro)
+
+```
+
+```{r mut_funcs}
+ 
+#=====================================================================
+# Mutation functions
+#=====================================================================
+
+# Code to perform substitution mutation on a single nucleotide
+mtte <- function(nucleotide){
+  sample(setdiff(c("A", "T", "C", "G"), nucleotide), 1)
+}
+mtte.V <- Vectorize(mtte, "nucleotide")
+
+
+insert_at <- function(a, pos, insert){
+  # Give the function a vector of the sequence of nucleotides and it will insert 
+  # new nucleotides (insert) at every position (pos)
+  if(min(pos) == 1){
+    result <- vector("list",2*length(pos))
+    result[c(FALSE,TRUE)] <- split(a, cumsum(seq_along(a) %in% (pos)))
+    result[c(TRUE,FALSE)] <- insert[order(pos)]
+  } else{
+    result <- vector("list",2*length(pos)+1)
+    result[c(TRUE, FALSE)] <- split(a, cumsum(seq_along(a) %in% (pos)))
+    result[c(FALSE, TRUE)] <- insert[order(pos)]
+  }
+  unlist(result)
+}
+
+sample_interval <- function(x, size, interval_length){
+  # Sample interval_length contiguous/adjacent elements from x size times.
+  # Does not allow overlapping of sampled intervals
+  # Does not allow repeat sample of the same interval
+  indices <- 1:(length(x) - interval_length + 1)
+  sampled_indices <- sample(indices, 1)
+  sampled_indices <- sampled_indices : (sampled_indices + interval_length - 1)
+  times <- 1
+  while(times < size){
+    remaining_viable_indices <- setdiff(1:length(x), sampled_indices)
+    check <- lead(remaining_viable_indices, interval_length - 1) - remaining_viable_indices
+    remaining_viable_indices <- remaining_viable_indices[!(is.na(check) | check >= interval_length)]
+    if(length(remaining_viable_indices) > 0){
+      next_sample <- sample(remaining_viable_indices, 1)
+      next_sample <- next_sample : (next_sample + interval_length - 1)
+      sampled_indices <- c(sampled_indices, next_sample)
+      times <- times + 1
+    } else{
+      print("Ran out of nucleotides to sample")
+      times <- size
+    }
+  }
+  return(sampled_indices)
+}
+
+```
+
+# Single simulation of mutation effects over time {.tabset .tabset-fade}
+
+```{r single_sim_params, cache = T} 
+
+#=====================================================================
+# Mutation parameter selection. 
+#=====================================================================
+set.seed(0)
+
+parent_dna <- beta_seq[[2]]
+
+intervals <- 2
+num_mutations <- seq(0, 76, by = intervals)
+
+```
+
+```{r single_sim, cache = T}
+
+# Select mutation locations
+
+mutation_locations <- c()
+for(i in seq_along(num_mutations)[-1]){
+  new_locations <- sample(setdiff(1:nchar(parent_dna), mutation_locations), intervals)
+  mutation_locations <- c(mutation_locations, c(new_locations))
+}
+
+agg_sub_fas <- c(`Substitutions = 0` = parent_dna)
+agg_del_fas <- c(`Deletions = 0` = parent_dna)
+
+for(i in seq_along(num_mutations)[-1]){
+  # Deletion mutations
+  previous_del <- str_split(agg_del_fas[i - 1], "")[[1]]
+  del_seq <- previous_del
+  del_seq[mutation_locations[(1:intervals) + (i - 2) * intervals]] <- "-"
+  agg_del_fas <- c(agg_del_fas, paste(del_seq, collapse = ""))
+  names(agg_del_fas)[i] <- paste("Deletions =", num_mutations[i])
+  
+  # Substitution mutations
+  previous_sub <- str_split(agg_sub_fas[i - 1], "")[[1]]
+  sub_seq <- previous_sub
+  sub_seq[mutation_locations[(1:intervals) + (i - 2) * intervals]] <- 
+    mtte.V(previous_sub[mutation_locations[(1:intervals) + (i - 2) * intervals]])
+  agg_sub_fas <- c(agg_sub_fas, paste(sub_seq, collapse = ""))
+  names(agg_sub_fas)[i] <- paste("Substitutions =", num_mutations[i])
+}
+
+agg_fas <- c(agg_sub_fas[-1], gsub("-","",agg_del_fas)[-1])
+
+all_mutations <- c(`Parent` = parent_dna, agg_fas)
+
+```
+
+# 2D CGR with natural extended vector
+
+```{r}
+
+cgr_2d <- function(dna_seq){
+  cgr_2d_coord  <- CGR_table(
+    A_ = c(0, 0) - 0.5,
+    C_ = c(0, 1) - 0.5,
+    G_ = c(1, 1) - 0.5,
+    T_ = c(1, 0) - 0.5
+  )
+  
+  cgr <- seq_to_cgr(dna_seq, CGR_coord = cgr_2d_coord, axes = c("i", "j")) + 0.5
+  return(cgr)
+}
+
+greyscale_grid <- function(df, nbins = 25){
+    x.bin <- seq(0, 1, length=nbins + 1)
+    y.bin <- seq(0, 1, length=nbins + 1)
+    freq <-  as.data.frame(
+        table(findInterval(df[,1], x.bin),
+              findInterval(df[,2], y.bin)))
+    freq[,1] <- as.numeric(freq[,1])
+    freq[,2] <- as.numeric(freq[,2])
+    freq2D <- diag(nbins)*0
+    
+    freq.min <- min(freq[,3])
+    grey <- freq[,3] - freq.min
+    grey.max <- max(grey)
+    grey <- 255 * grey / grey.max
+    
+    freq2D[cbind(freq[,1], freq[,2])] <- round(grey)
+    freq2D
+}
+
+env <- function(Q){
+  m <- nrow(Q)
+  n <- ncol(Q)
+  
+  mu_1 <- c()
+  mu_2 <- c()
+  n_k <- c() # number of k-valued pixels
+  D_k00 <- c()
+  D_k10 <- c()
+  D_k20 <- c()
+  D_k02 <- c()
+  D_k11 <- c()
+  for(k in 0:255){
+    q_inv <- which(Q == k, arr.ind = T)
+    n_k <- c(n_k, nrow(q_inv))
+    if(nrow(q_inv) > 0){
+      mu_1k <- sum(q_inv[,1]) / nrow(q_inv)
+      mu_2k <- sum(q_inv[,2]) / nrow(q_inv)
+      i_minus_mu1 <- q_inv[,1] - mu_1k
+      j_minus_mu2 <- q_inv[,2] - mu_2k
+      n_k_ <- nrow(q_inv) 
+      D_k00 <- c(D_k00, sum(i_minus_mu1^0 * j_minus_mu2^0 / n_k_^0))
+      D_k20 <- c(D_k20, sum(i_minus_mu1^2 * j_minus_mu2^0 / n_k_^2))
+      D_k02 <- c(D_k20, sum(i_minus_mu1^0 * j_minus_mu2^2 / n_k_^2))
+      D_k11 <- c(D_k11, sum(i_minus_mu1^1 * j_minus_mu2^1 / n_k_^2))
+    } else{
+      D_k00 <- c(D_k00, 0)
+      D_k20 <- c(D_k20, 0)
+      D_k02 <- c(D_k20, 0)
+      D_k11 <- c(D_k11, 0)
+      mu_1k <- 0
+      mu_2k <- 0
+    }
+    mu_1 <- c(mu_1, mu_1k)
+    mu_2 <- c(mu_2, mu_2k)
+  }
+  D_k20 <- D_k20 / sum(n_k)
+  D_k02 <- D_k02 / sum(n_k)
+  D_k11 <- D_k11 / sum(n_k)
+  return(c(n_k, mu_1, mu_2, D_k20, D_k02, D_k11))
+}
+
+all_mutations_2d <- lapply(all_mutations, cgr_2d)
+all_mutations_2d <- lapply(all_mutations_2d, greyscale_grid, nbins = 8)
+cgr_env_dist <- dist(t(sapply(all_mutations_2d, env)))
+
+```
+
+```{r}
+
+cgr_env_output <- cgr_env_dist |> as.matrix() |> melt() |> 
+  filter(Var1 == "Parent" & Var2 != "Parent") |> 
+  mutate(
+    `Mutation count` = as.numeric(gsub("(Substitutions|Deletions) = ", "", Var2)),
+    `Mutation percent` = `Mutation count`/nchar(parent_dna),
+    `Mutation type` = gsub(" = [0-9]*", "", Var2)
+  )  |> 
+  mutate(value.scaled = value / max(value))
+
+cgr_env_substitutions <- cgr_env_output |> filter(`Mutation type` == "Substitutions") 
+cgr_env_deletions <- cgr_env_output |> filter(`Mutation type` == "Deletions") 
+
+# Figure 
+# Plots of the distance from the parent sequence as a function of the 
+# percent of DNA that is mutated. 
+cgr_env_output |> 
+  ggplot(aes(x=`Mutation percent`, y = value,col = `Mutation type`, pch = `Mutation type`)) + 
+  geom_point() + 
+  theme_minimal() + geom_vline(xintercept = 0) + geom_hline(yintercept = 0) +
+  ylab("Distance") + theme(legend.position = "bottom")
+
+# Figure 
+# Distance from parent sequence due to deletion mutation v 
+# distance from parent sequence due to substitution mutation, 
+# colored by proportion of sequence that has been mutated.
+full_join(
+  cgr_env_substitutions, cgr_env_deletions, 
+  by = c("Var1", "Mutation count", "Mutation percent"), 
+  suffix=c(".S", ".D")
+) |>
+  ggplot() + 
+  geom_point(aes(x=value.S, y=value.D, col = `Mutation percent`), alpha = .75, size = 3) + 
+  theme_minimal() +  
+  geom_abline(slope = 1, intercept = 0, lty = "dashed") +  
+  geom_vline(xintercept = 0) + geom_hline(yintercept = 0) + 
+  xlab("Distance from parent sequence\ndue to substitution mutation") + 
+  ylab("Distance from parent sequence\ndue to deletion mutation") +
+  scale_color_continuous(low = "blue", high = "orange")
+
+```
+
