@@ -105,17 +105,17 @@ kmer_dist <- function(seq_string, ...){
   kmer_seq
 }
 
-kmer_dist(beta_seq, k = 6, method = "euclidean") |> hm() 
+kmer_dist(beta_seq, k = 6, method = "euclidean") |> (\(x) x / max(x))() |> hm(trans = "exp") 
 kmer_dist(beta_seq, k = 6, method = "euclidean") |> bionj() |> root("gallus") |> plot()
 kmer_dist(beta_seq, k = 6, method = "euclidean") |> upgma() |> root("gallus") |> plot()
 kmer_dist(beta_seq, k = 6, method = "euclidean") |> wpgma() |> root("gallus") |> plot()
 
-kmer_dist(nadh, k = 6, method = "euclidean") |> hm() 
+kmer_dist(nadh, k = 6, method = "euclidean") |> (\(x) x / max(x))() |> hm(trans = "exp") 
 kmer_dist(nadh, k = 6, method = "euclidean") |> bionj() |> root("Saimiri sciureus") |> plot()
 kmer_dist(nadh, k = 6, method = "euclidean") |> upgma() |> root("Saimiri sciureus") |> plot()
 kmer_dist(nadh, k = 6, method = "euclidean") |> wpgma() |> root("Saimiri sciureus") |> plot()
 
-kmer_dist(syn_fas, k = 6, method = "euclidean") |> hm() 
+kmer_dist(syn_fas, k = 6, method = "euclidean") |> (\(x) x / max(x))() |> hm(trans = "exp") 
 kmer_dist(syn_fas, k = 6, method = "euclidean") |> bionj() |> plot()
 kmer_dist(syn_fas, k = 6, method = "euclidean") |> upgma() |> plot()
 kmer_dist(syn_fas, k = 6, method = "euclidean") |> wpgma() |> plot()
@@ -140,13 +140,13 @@ beta_cg <- lapply(beta_seq, seq_to_cgr)
 nadh_cg <- lapply(nadh, seq_to_cgr)  
 syn_cg <- lapply(syn_fas, seq_to_cgr) 
 
-cgr_distance2(beta_cg, frac = 1/15, normalize = T) |> hm()
+cgr_distance2(beta_cg, frac = 1/15, normalize = T) |> (\(x) x / max(x))() |> hm()
 cgr_distance2(beta_cg, frac = 1/15, normalize = T) |> bionj() |> ape::root("gallus") |> plot()
 
-cgr_distance2(nadh_cg, frac = 1/15, normalize = T) |> hm()
+cgr_distance2(nadh_cg, frac = 1/15, normalize = T) |> (\(x) x / max(x))() |> hm()
 cgr_distance2(nadh_cg, frac = 1/15, normalize = T) |> bionj() |> root("Saimiri sciureus") |> plot()
 
-cgr_distance2(syn_cg, frac = 1/15, normalize = T) |> hm()
+cgr_distance2(syn_cg, frac = 1/15, normalize = T) |> (\(x) x / max(x))() |> hm()
 cgr_distance2(syn_cg, frac = 1/15, normalize = T) |> bionj() |> plot()
   
 ```
@@ -232,6 +232,12 @@ align_plots1(
 )
 
 ## Alternative volume intersection parameters 
+
+syn_tanimoto00 <- 
+  volume_intersection_tanimoto(bandwidth = 0.003/16, 
+    lapply(syn_cg, function(x) x[-1,]), # Drop the origin point
+    hv_args = list(samples.per.point = 500), 
+    vi_args = list(num.points.max = 150000)) 
 
 syn_tanimoto0 <- 
   volume_intersection_tanimoto(bandwidth = 0.000375, 
