@@ -148,7 +148,7 @@ cgr_distance2(nadh_cg, frac = 1/15, normalize = T) |> bionj() |> root("Saimiri s
 
 cgr_distance2(syn_cg, frac = 1/15, normalize = T) |> (\(x) x / max(x))() |> hm(trans = "exp")
 cgr_distance2(syn_cg, frac = 1/15, normalize = T) |> bionj() |> plot()
-  
+
 ```
 
 ```{r, cache = T}
@@ -175,6 +175,7 @@ beta_tanimoto <-
     vi_args = list(num.points.max = 150000)
   ) 
 
+beta_tanimoto |> (\(x) 1 - x)() |> hm(trans = "exp")
 beta_tanimoto |> (\(x) 1 - x)() |> bionj() |> ape::root("gallus") |> plot()
 
 nadh_tanimoto <- 
@@ -184,6 +185,7 @@ nadh_tanimoto <-
     vi_args = list(num.points.max = 150000)
   ) 
 
+nadh_tanimoto |> (\(x) 1 - x)() |> hm(trans = "exp")
 nadh_tanimoto |> (\(x) 1 - x)() |> bionj() |> root("Saimiri sciureus") |> plot()
 
 syn_tanimoto <- 
@@ -192,6 +194,7 @@ syn_tanimoto <-
     hv_args = list(samples.per.point = 5000), 
     vi_args = list(num.points.max = 150000)) 
 
+syn_tanimoto |> (\(x) 1 - x)() |> hm(trans = "exp")
 syn_tanimoto |> (\(x) 1 - x)()  |> bionj() |> plot()
 
 ```
