@@ -179,8 +179,8 @@ feature_histograms <-
   function(features, bin_count, return_breaks = F, return_bin_centers = F){
     if(max(unlist(features)) == pi & min(unlist(features)) == -pi){
       # Histograms for angles may not need to be uniformly distributed. 
-      # At least on one instance, which this is accounting for, the angles 
-      # immediately adjacent to pi and -pi cannot be attained in the CGR. 
+      # It may be the case that angles 
+      # immediately adjacent to pi and -pi cannot be attained in some CGR feature.
       # This removes the unattainable angles next to pi and -pi out of the set of 
       # histogram breaks. 
       remove_pi <- function(x){
@@ -199,6 +199,46 @@ feature_histograms <-
       sapply(
         features,
         function(x) hist(x, breaks = features_breaks, plot = F)$counts
+      )
+    bin_centers <- zoo::rollmean(features_breaks, k = 2)
+    
+    output <- t(features_tabulation)
+    if(return_breaks) output <- list(output, features_breaks)
+    if(return_bin_centers) output <- list(output, bin_centers)
+    return(output)
+  }
+
+common_function <- function(list_of_vectors, FUNC, ...){
+  # A faster way to find a common min/max across all lists of vectors
+  output <- lapply(list_of_vectors, FUNC, ...)
+  output <- sapply(output, FUNC, ...)
+  output
+}
+
+feature_histograms2 <- 
+  function(features, bin_count, return_breaks = F, return_bin_centers = F){
+    if(common_function(features, max) == pi | common_function(features, min) == -pi){
+      # Histograms for angles may not need to be uniformly distributed. 
+      # At least on one instance, which this is accounting for, the angles 
+      # immediately adjacent to pi and -pi cannot be attained in the CGR. 
+      # This removes the unattainable angles next to pi and -pi out of the set of 
+      # histogram breaks. 
+      remove_pi <- function(x){
+        new_x <- x[which(abs(pi - x) > 3e-08)]
+        new_x <- new_x[which(abs(-pi - new_x) > 3e-08)]
+        return(new_x)
+      }
+      not_pi <- remove_pi(unlist(features))
+      features_breaks <- seq(min(not_pi), max(not_pi), length.out = bin_count - 1)
+      features_breaks <- c(-pi, features_breaks, pi)
+    } else {
+      features_breaks <- seq(common_function(features, min), common_function(features, max), length.out = bin_count + 1)
+    }
+    # Get histogram bin counts
+    features_tabulation <-
+      sapply(
+        features,
+        function(x) tabulate(findInterval(x, vec = features_breaks), bin_count)
       )
     bin_centers <- zoo::rollmean(features_breaks, k = 2)
     
