@@ -175,47 +175,14 @@ zv <- function(input_matrix, dim = 2){
   return(zv)
 }
 
-feature_histograms <- 
-  function(features, bin_count, return_breaks = F, return_bin_centers = F){
-    if(max(unlist(features)) == pi & min(unlist(features)) == -pi){
-      # Histograms for angles may not need to be uniformly distributed. 
-      # It may be the case that angles 
-      # immediately adjacent to pi and -pi cannot be attained in some CGR feature.
-      # This removes the unattainable angles next to pi and -pi out of the set of 
-      # histogram breaks. 
-      remove_pi <- function(x){
-        new_x <- x[which(abs(pi - x) > 3e-08)]
-        new_x <- new_x[which(abs(-pi - new_x) > 3e-08)]
-        return(new_x)
-      }
-      not_pi <- remove_pi(unlist(features))
-      features_breaks <- seq(min(not_pi), max(not_pi), length.out = bin_count - 1)
-      features_breaks <- c(-pi, features_breaks, pi)
-    } else {
-      features_breaks <- seq(min(unlist(features)), max(unlist(features)), length.out = bin_count + 1)
-    }
-    # Get histogram bin counts
-    features_tabulation <-
-      sapply(
-        features,
-        function(x) hist(x, breaks = features_breaks, plot = F)$counts
-      )
-    bin_centers <- zoo::rollmean(features_breaks, k = 2)
-    
-    output <- t(features_tabulation)
-    if(return_breaks) output <- list(output, features_breaks)
-    if(return_bin_centers) output <- list(output, bin_centers)
-    return(output)
-  }
-
 common_function <- function(list_of_vectors, FUNC, ...){
   # A faster way to find a common min/max across all lists of vectors
-  output <- lapply(list_of_vectors, FUNC, ...)
-  output <- sapply(output, FUNC, ...)
+  output <- sapply(list_of_vectors, FUNC, ...)
+  output <- FUNC(output)
   output
 }
 
-feature_histograms2 <- 
+feature_histograms <- 
   function(features, bin_count, return_breaks = F, return_bin_centers = F){
     if(common_function(features, max) == pi | common_function(features, min) == -pi){
       # Histograms for angles may not need to be uniformly distributed. 
@@ -229,16 +196,17 @@ feature_histograms2 <-
         return(new_x)
       }
       not_pi <- remove_pi(unlist(features))
-      features_breaks <- seq(min(not_pi), max(not_pi), length.out = bin_count - 1)
+      features_breaks <- seq(common_function(not_pi, min), common_function(not_pi, max), length.out = bin_count - 1)
       features_breaks <- c(-pi, features_breaks, pi)
     } else {
       features_breaks <- seq(common_function(features, min), common_function(features, max), length.out = bin_count + 1)
     }
-    # Get histogram bin counts
+    # Get histogram bin counts (parameters set to replicate hist() function)
     features_tabulation <-
       sapply(
         features,
-        function(x) tabulate(findInterval(x, vec = features_breaks), bin_count)
+        # function(x) hist(x, breaks = features_breaks, plot = F)$counts # This version is slower
+        function(x) tabulate(findInterval(x, vec = features_breaks, rightmost.closed = T, all.inside = T, left.open = T), bin_count)
       )
     bin_centers <- zoo::rollmean(features_breaks, k = 2)
     
@@ -450,30 +418,48 @@ cgr_distance2 <-
     
     bins <- ceiling(frac * (mean(sapply(seq_cg, nrow)) - 1))
     
-    shape_features <- list(
-      lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(1, 0, 0))),
-      lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(0, 1, 0))),
-      lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(0, 0, 1))),
-      lapply(seq_cg, by3roworientedangle4, v = c(1, 0, 0)),
-      lapply(seq_cg, by3roworientedangle4, v = c(0, 1, 0)),
-      lapply(seq_cg, by3roworientedangle4, v = c(0, 0, 1)),
-      lapply(seq_cg, orienteddistance1, v = c(1, 0, 0)),
-      lapply(seq_cg, orienteddistance1, v = c(0, 1, 0)),
-      lapply(seq_cg, orienteddistance1, v = c(0, 0, 1)),
-      lapply(seq_cg, by3roworienteddistance4, v = c(1, 0, 0)),
-      lapply(seq_cg, by3roworienteddistance4, v = c(0, 1, 0)),
-      lapply(seq_cg, by3roworienteddistance4, v = c(0, 0, 1))
-    ) |> 
-      lapply(feature_histograms, bin_count = bins) |> 
-      lapply(function(x) x |> cen_scal() |> dist() |> as.matrix() |> norm())
+    reference_coordinates <- list(c(1, 0, 0), c(0, 1, 0), c(0, 0, 1))
+    feature_functions <- list(function(x, ...) orientedangle1(x[-1,], ...),
+                              by3roworientedangle4,
+                              orienteddistance1,
+                              by3roworienteddistance4)
+    shape_histograms <- vector(mode = "list", length = 12)
+    i <- 1
+    for(f in seq_along(feature_functions)){
+      for(v in seq_along(reference_coordinates)){
+        temp <- lapply(seq_cg, feature_functions[[f]], v = reference_coordinates[[v]])
+        shape_histograms[[i]] <- feature_histograms(temp, bin_count = bins)
+        shape_histograms[[i]] <- shape_histograms[[i]]  |> cen_scal() |> dist() |> as.matrix() |> norm()
+        i <- i + 1
+      }
+    }
+    
+    # shape_features <- list(
+    #   lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(1, 0, 0))),
+    #   lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(0, 1, 0))),
+    #   lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(0, 0, 1))),
+    #   lapply(seq_cg, by3roworientedangle4, v = c(1, 0, 0)),
+    #   lapply(seq_cg, by3roworientedangle4, v = c(0, 1, 0)),
+    #   lapply(seq_cg, by3roworientedangle4, v = c(0, 0, 1)),
+    #   lapply(seq_cg, orienteddistance1, v = c(1, 0, 0)),
+    #   lapply(seq_cg, orienteddistance1, v = c(0, 1, 0)),
+    #   lapply(seq_cg, orienteddistance1, v = c(0, 0, 1)),
+    #   lapply(seq_cg, by3roworienteddistance4, v = c(1, 0, 0)),
+    #   lapply(seq_cg, by3roworienteddistance4, v = c(0, 1, 0)),
+    #   lapply(seq_cg, by3roworienteddistance4, v = c(0, 0, 1))
+    # ) 
+    # shape_histograms <- vector(length = length(shape_features), mode = "list")
+    # for(i in seq_along(shape_features)){
+    #   shape_histograms[[i]] <- feature_histograms(shape_features[[i]], bin_count = bins)
+    #   shape_histograms[[i]] <- shape_histograms[[i]]  |> cen_scal() |> dist() |> as.matrix() |> norm()
+    # }
     
     coord_features <- 
       coordinate_histograms(seq_cg,  bin_count = bins) |> 
       split_coord_histograms(ncol(seq_cg[[1]])) |>
       lapply(function(x) x |> cen_scal() |> dist() |> as.matrix() |> norm())
-    
     combine_distances(
-      c(shape_features, coord_features), 
+      c(shape_histograms, coord_features), 
       p = power
     )
   }
