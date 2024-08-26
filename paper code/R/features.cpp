@@ -31,7 +31,7 @@ double oriented_angle(arma::rowvec  a, arma::rowvec  b, arma::rowvec  n) {
   double norm_b = arma::norm(b);
   
   if (norm_a == 0.0 || norm_b == 0.0) {
-    return a;
+    return 0;
   }
   
   double x =  (arma::dot(a, b) / (norm_a * norm_b));
