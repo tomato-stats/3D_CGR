@@ -32,28 +32,38 @@ library(ggtree)
 
 ```
 
-```{r, dpi = 400}
+```{r}
 #####################################################################
 # Example DNA sequences analyzed by 3D CGR / paper reproduction
-# This code does not run in parallel and the section on volume intersection
+# This code does not run in parallel (yet) and the section on volume intersection
 # can take a while to run.
 # By: Stephanie Young <syoung2@sdsu.edu> <syoung49@its.jnj.com>
 #####################################################################
+```
+
+```{r}
+
+################################################################################
+# Helper functions
+################################################################################
 
 # Heatmap functions
 
-hm <- function(distances, ...){
+hm <- function(distances, na.value =  rgb(0, 0, 0, alpha = .25), ...){
   if(class(distances)[1] == "dist")
     dat <- distances |> as.matrix() |> reshape2::melt(value.name = "distance") 
   else 
     dat <- distances |> reshape2::melt(value.name = "distance") 
-  tri <- distances |> as.matrix() |> upper.tri(diag = T) |> reshape2::melt() |> pull(value) 
-  #dat <- dat[tri, , drop = F] #
-  #dat$distance <- (dat$distance - min(dat$distance)) / max(dat$distance)
+  dat <- dat |> mutate(orig = distance) 
+  dat <- dat |> mutate(distance = case_when(Var1 == Var2 ~ NA, TRUE ~ distance))
+  dat <- dat |> mutate(distance = (distance - min(distance, na.rm = T)))
+  dat <- dat |> mutate(distance = distance / max(distance, na.rm = T))
+  #tri <- distances |> as.matrix() |> upper.tri(diag = T) |> reshape2::melt() |> pull(value) 
+  #dat <- dat[tri, , drop = F] 
   dat |> 
     ggplot() + 
     geom_tile(aes(x = Var1, y = Var2, fill = distance)) + 
-    viridis::scale_fill_viridis(option = "turbo", limits = c(0, 1), ...) +
+    viridis::scale_fill_viridis(option = "turbo", limits = c(0, 1), na.value = na.value, ... ) +
     theme_light() + 
     theme(
       axis.text.x = element_text(angle = 90, vjust = .25, hjust = 1), 
@@ -61,13 +71,9 @@ hm <- function(distances, ...){
       axis.title.y = element_blank(), 
       legend.position = "bottom"
     ) +
-    coord_fixed()
+    coord_fixed() +
+    guides(fill = guide_colourbar("Normalized\ndistance"))
 }
-
-
-#=====================================================================
-# Clustal Omega + p-distance results for comparison
-#=====================================================================
 
 # Function to align the sequences
 
@@ -77,25 +83,7 @@ clustal_omega <- function(dna_seq, outgroup = NULL){
     (\(x)x/max(x))() # distances rescaled to be between 0 and 1 because bionj does not like distances > 100
 }
 
-
-clustal_omega(beta_seq) |> hm() 
-clustal_omega(beta_seq) |> bionj() |> root("gallus") |> plot()
-clustal_omega(beta_seq) |> upgma() |> root("gallus") |> plot()
-clustal_omega(beta_seq) |> wpgma() |> root("gallus") |> plot()
-
-clustal_omega(nadh) |> hm()
-clustal_omega(nadh) |> bionj() |> root("Saimiri sciureus") |> plot() # bionj does not like distances > 100
-clustal_omega(nadh) |> upgma() |> root("Saimiri sciureus") |> plot()
-clustal_omega(nadh) |> wpgma() |> root("Saimiri sciureus") |> plot()
-
-clustal_omega(syn_fas) |> hm()
-clustal_omega(syn_fas) |> bionj() |> plot() 
-clustal_omega(syn_fas) |> upgma() |> plot() 
-clustal_omega(syn_fas) |> wpgma() |> plot() 
-
-#=====================================================================
-# kmer-distance results for comparison 
-#=====================================================================
+# K-mer distance function 
 
 kmer_dist <- function(seq_string, ...){
   kmer_seq <- kmer::kdistance(str_split(seq_string, ""), ...)
@@ -105,17 +93,46 @@ kmer_dist <- function(seq_string, ...){
   kmer_seq
 }
 
-kmer_dist(beta_seq, k = 6, method = "euclidean") |> (\(x) x / max(x))() |> hm(trans = "exp") 
+```
+
+
+```{r, dpi = 400}
+
+#=====================================================================
+# Clustal Omega + p-distance results for comparison
+#=====================================================================
+
+clustal_omega(beta_seq) |> hm(trans = scales::modulus_trans(p=2)) 
+clustal_omega(beta_seq) |> bionj() |> root("gallus") |> plot()
+clustal_omega(beta_seq) |> upgma() |> root("gallus") |> plot()
+clustal_omega(beta_seq) |> wpgma() |> root("gallus") |> plot()
+
+clustal_omega(nadh) |> hm(trans = scales::modulus_trans(p=2)) 
+clustal_omega(nadh) |> bionj() |> root("Saimiri sciureus") |> plot() # bionj does not like distances > 100
+clustal_omega(nadh) |> upgma() |> root("Saimiri sciureus") |> plot()
+clustal_omega(nadh) |> wpgma() |> root("Saimiri sciureus") |> plot()
+
+clustal_omega(syn_fas) |> hm(trans = scales::modulus_trans(p=2)) 
+clustal_omega(syn_fas) |> bionj() |> plot() 
+clustal_omega(syn_fas) |> upgma() |> plot() 
+clustal_omega(syn_fas) |> wpgma() |> plot() 
+
+#=====================================================================
+# kmer-distance results for comparison 
+#=====================================================================
+
+
+kmer_dist(beta_seq, k = 6, method = "euclidean") |> hm(trans = scales::modulus_trans(p=2)) 
 kmer_dist(beta_seq, k = 6, method = "euclidean") |> bionj() |> root("gallus") |> plot()
 kmer_dist(beta_seq, k = 6, method = "euclidean") |> upgma() |> root("gallus") |> plot()
 kmer_dist(beta_seq, k = 6, method = "euclidean") |> wpgma() |> root("gallus") |> plot()
 
-kmer_dist(nadh, k = 6, method = "euclidean") |> (\(x) x / max(x))() |> hm(trans = "exp") 
+kmer_dist(nadh, k = 6, method = "euclidean") |> hm(trans = scales::modulus_trans(p=2))
 kmer_dist(nadh, k = 6, method = "euclidean") |> bionj() |> root("Saimiri sciureus") |> plot()
 kmer_dist(nadh, k = 6, method = "euclidean") |> upgma() |> root("Saimiri sciureus") |> plot()
 kmer_dist(nadh, k = 6, method = "euclidean") |> wpgma() |> root("Saimiri sciureus") |> plot()
 
-kmer_dist(syn_fas, k = 6, method = "euclidean") |> (\(x) x / max(x))() |> hm(trans = "exp") 
+kmer_dist(syn_fas, k = 6, method = "euclidean") |> hm(trans = scales::modulus_trans(p=2))
 kmer_dist(syn_fas, k = 6, method = "euclidean") |> bionj() |> plot()
 kmer_dist(syn_fas, k = 6, method = "euclidean") |> upgma() |> plot()
 kmer_dist(syn_fas, k = 6, method = "euclidean") |> wpgma() |> plot()
@@ -140,14 +157,14 @@ beta_cg <- lapply(beta_seq, seq_to_cgr)
 nadh_cg <- lapply(nadh, seq_to_cgr)  
 syn_cg <- lapply(syn_fas, seq_to_cgr) 
 
-cgr_distance2(beta_cg, frac = 1/15, normalize = T) |> (\(x) x / max(x))() |> hm(trans = "exp")
+cgr_distance2(beta_cg, frac = 1/15, normalize = T) |> hm(trans = scales::modulus_trans(p=2)) 
 cgr_distance2(beta_cg, frac = 1/15, normalize = T) |> bionj() |> ape::root("gallus") |> plot()
 
-cgr_distance2(nadh_cg, frac = 1/15, normalize = T) |> (\(x) x / max(x))() |> hm(trans = "exp")
+cgr_distance2(nadh_cg, frac = 1/15, normalize = T) |> hm(trans = scales::modulus_trans(p=2)) 
 cgr_distance2(nadh_cg, frac = 1/15, normalize = T) |> bionj() |> root("Saimiri sciureus") |> plot()
 
-cgr_distance2(syn_cg, frac = 1/15, normalize = T) |> (\(x) x / max(x))() |> hm(trans = "exp")
-cgr_distance2(syn_cg, frac = 1/15, normalize = T) |> bionj() |> plot()
+cgr_distance2(syn_cg, frac = 1/15, normalize = T) |> hm(trans = scales::modulus_trans(p=2)) 
+cgr_distance2(syn_cg, frac = 1/15, normalize = T) |> bionj() |> root("Original") |> plot()
 
 ```
 
@@ -175,7 +192,7 @@ beta_tanimoto <-
     vi_args = list(num.points.max = 150000)
   ) 
 
-beta_tanimoto |> (\(x) 1 - x)() |> hm(trans = "exp")
+beta_tanimoto |> (\(x) 1 - x)() |> hm(trans = scales::modulus_trans(p=2)) 
 beta_tanimoto |> (\(x) 1 - x)() |> bionj() |> ape::root("gallus") |> plot()
 
 nadh_tanimoto <- 
@@ -185,7 +202,7 @@ nadh_tanimoto <-
     vi_args = list(num.points.max = 150000)
   ) 
 
-nadh_tanimoto |> (\(x) 1 - x)() |> hm(trans = "exp")
+nadh_tanimoto |> (\(x) 1 - x)() |> hm(trans = scales::modulus_trans(p=2)) 
 nadh_tanimoto |> (\(x) 1 - x)() |> bionj() |> root("Saimiri sciureus") |> plot()
 
 syn_tanimoto <- 
@@ -194,127 +211,12 @@ syn_tanimoto <-
     hv_args = list(samples.per.point = 5000), 
     vi_args = list(num.points.max = 150000)) 
 
-syn_tanimoto |> (\(x) 1 - x)() |> hm(trans = "exp")
+syn_tanimoto |> (\(x) 1 - x)() |> hm(trans = scales::modulus_trans(p=2)) 
 syn_tanimoto |> (\(x) 1 - x)()  |> bionj() |> plot()
 
 ```
 
 
-```{r}
-
-#=====================================================================
-# Checking alternative parameter settings for synthetic sequences
-#=====================================================================
-
-align_plots1 <- function (...) {
-  pl <- list(...)
-  stopifnot(do.call(all, lapply(pl, inherits, "gg")))
-  gl <- lapply(pl, ggplotGrob)
-  bind2 <- function(x, y) gtable:::cbind_gtable(x, y, "first")
-  combined <- Reduce(bind2, gl[-1], gl[[1]])
-  wl <- lapply(gl, "[[", "heights")
-  combined$heights <- do.call(grid::unit.pmax, wl)
-  grid::grid.newpage()
-  grid::grid.draw(combined)
-}
-
-## Alternative K-mer parameters
-
-align_plots1(
-  kmer_dist(syn_fas, k = 4, method = "euclidean")  |> (\(x) x / max(x))() |> hm(trans = "exp"),
-  kmer_dist(syn_fas, k = 9, method = "euclidean")  |> (\(x) x / max(x))() |> hm(trans = "exp"),
-  kmer_dist(syn_fas, k = 3, method = "edgar")  |> (\(x) x / max(x))() |> hm(trans = "exp"),
-  kmer_dist(syn_fas, k = 9, method = "edgar")  |> (\(x) x / max(x))() |> hm(trans = "exp")
-)
-
-align_plots1(
-  kmer_dist(syn_fas, k = 4, method = "euclidean") |> bionj()|> root("Original") |> ggtree(ladderize = F) + geom_tiplab(),
-  rotate(kmer_dist(syn_fas, k = 8, method = "euclidean") |> bionj()|> root("Original") |> ggtree(ladderize = F) + geom_tiplab() , node = 16),
-  kmer_dist(syn_fas, k = 4, method = "edgar") |> bionj()|> root("Original") |> ggtree(ladderize = F) + geom_tiplab(),
-  kmer_dist(syn_fas, k = 8, method = "edgar") |> bionj()|> root("Original") |> ggtree(ladderize = F) + geom_tiplab()
-)
-
-## Alternative volume intersection parameters 
-
-syn_tanimoto00 <- 
-  volume_intersection_tanimoto(bandwidth = 0.003/16, 
-    lapply(syn_cg, function(x) x[-1,]), # Drop the origin point
-    hv_args = list(samples.per.point = 500), 
-    vi_args = list(num.points.max = 150000)) 
-
-syn_tanimoto0 <- 
-  volume_intersection_tanimoto(bandwidth = 0.000375, 
-    lapply(syn_cg, function(x) x[-1,]), # Drop the origin point
-    hv_args = list(samples.per.point = 500), 
-    vi_args = list(num.points.max = 150000)) 
-
-syn_tanimoto1 <- 
-  volume_intersection_tanimoto(bandwidth = 0.00075, 
-    lapply(syn_cg, function(x) x[-1,]), # Drop the origin point
-    hv_args = list(samples.per.point = 500), 
-    vi_args = list(num.points.max = 150000)) 
-
-syn_tanimoto2 <- 
-  volume_intersection_tanimoto(bandwidth = 0.0015, 
-    lapply(syn_cg, function(x) x[-1,]), # Drop the origin point
-    hv_args = list(samples.per.point = 500), 
-    vi_args = list(num.points.max = 150000)) 
-
-syn_tanimoto3 <- 
-  volume_intersection_tanimoto(bandwidth = 0.006, 
-    lapply(syn_cg, function(x) x[-1,]), # Drop the origin point
-    hv_args = list(samples.per.point = 500), 
-    vi_args = list(num.points.max = 150000)) 
-
-syn_tanimoto4 <- 
-  volume_intersection_tanimoto(bandwidth = 0.012, 
-    lapply(syn_cg, function(x) x[-1,]), # Drop the origin point
-    hv_args = list(samples.per.point = 500), 
-    vi_args = list(num.points.max = 150000)) 
-
-syn_tanimoto5 <- 
-  volume_intersection_tanimoto(bandwidth = 0.024, 
-    lapply(syn_cg, function(x) x[-1,]), # Drop the origin point
-    hv_args = list(samples.per.point = 500), 
-    vi_args = list(num.points.max = 150000)) 
-
-
-align_plots1(  
-  syn_tanimoto0 |> (\(x) 1 - x)() |> (\(x) x / max(x))() |> hm(trans = "exp"),
-  syn_tanimoto1 |> (\(x) 1 - x)() |> (\(x) x / max(x))() |> hm(trans = "exp"),
-  syn_tanimoto2 |> (\(x) 1 - x)() |> (\(x) x / max(x))() |> hm(trans = "exp"),
-  syn_tanimoto3 |> (\(x) 1 - x)() |> (\(x) x / max(x))() |> hm(trans = "exp"),
-  syn_tanimoto4 |> (\(x) 1 - x)() |> (\(x) x / max(x))() |> hm(trans = "exp"),
-  syn_tanimoto5 |> (\(x) 1 - x)() |> (\(x) x / max(x))() |> hm(trans = "exp")
-)
-
-align_plots1(
-  kmer_dist(syn_fas, k = 4, method = "euclidean") |> bionj()|> root("Original") |> ggtree(ladderize = F) + geom_tiplab(),
-  kmer_dist(syn_fas, k = 8, method = "euclidean") |> bionj()|> root("Original") |> ggtree(ladderize = F) + geom_tiplab(),
-  kmer_dist(syn_fas, k = 4, method = "edgar") |> bionj()|> root("Original") |> ggtree(ladderize = F) + geom_tiplab(),
-  kmer_dist(syn_fas, k = 8, method = "edgar") |> bionj()|> root("Original") |> ggtree(ladderize = F) + geom_tiplab()
-)
-
-
-## Alternative shape signature settings
-
-align_plots1(
- cgr_distance2(syn_cg, frac = 1/60, normalize = T)|> (\(x) x / max(x))()  |> hm(trans = "exp") ,
- cgr_distance2(syn_cg, frac = 1/30, normalize = T)|> (\(x) x / max(x))()  |> hm(trans = "exp") ,
- cgr_distance2(syn_cg, frac = 2/15, normalize = T)|> (\(x) x / max(x))()  |> hm(trans = "exp") ,
- cgr_distance2(syn_cg, frac = 4/15, normalize = T)|> (\(x) x / max(x))()  |> hm(trans = "exp") ,
- cgr_distance2(syn_cg, frac = 1, normalize = T)|> (\(x) x / max(x))()  |> hm(trans = "exp") ,
- cgr_distance2(syn_cg, frac = 2, normalize = T)|> (\(x) x / max(x))()  |> hm(trans = "exp") 
-)
-
-align_plots1(
-  cgr_distance2(syn_cg, frac = 1/60, normalize = T)|> bionj()|> root("Original") |> ggtree(ladderize = F) + geom_tiplab(),
-  cgr_distance2(syn_cg, frac = 1/30, normalize = T)|> bionj()|> root("Original") |> ggtree(ladderize = F) + geom_tiplab(),
-  cgr_distance2(syn_cg, frac = 1, normalize = T)|> bionj()|> root("Original") |> ggtree(ladderize = F) + geom_tiplab(),
-  cgr_distance2(syn_cg, frac = 2, normalize = T)|> bionj()|> root("Original") |> ggtree(ladderize = F) + geom_tiplab()
-) 
-
-```
 
 ```{r}
 
