@@ -255,8 +255,13 @@ coordinate_histograms <-
       )
     
     # Get histogram bounds
-    hist_lb <- apply(do.call(rbind, cgr_coords), 2, min)
-    hist_ub <- apply(do.call(rbind, cgr_coords), 2, max)
+    ncols =  dim(cgr_coords[[1]])[2]
+    hist_lb <- vector(length = ncols, mode = "numeric")
+    hist_ub <- vector(length = ncols, mode = "numeric")
+    for(col in 1:ncols){
+      hist_lb[col] <- common_function(lapply(cgr_coords, function(x) x[,col]), min)
+      hist_ub[col] <- common_function(lapply(cgr_coords, function(x) x[,col]), max)
+    }
     
     # Get histogram intervals for each axis
     hist_breaks <- vector(mode = "list", length = length(hist_lb))
@@ -427,37 +432,18 @@ cgr_distance2 <-
     i <- 1
     for(f in seq_along(feature_functions)){
       for(v in seq_along(reference_coordinates)){
-        temp <- lapply(seq_cg, feature_functions[[f]], v = reference_coordinates[[v]])
-        shape_histograms[[i]] <- feature_histograms(temp, bin_count = bins)
+        shape_histograms[[i]] <- lapply(seq_cg, feature_functions[[f]], v = reference_coordinates[[v]])
+        shape_histograms[[i]] <- feature_histograms(shape_histograms[[i]] , bin_count = bins)
         shape_histograms[[i]] <- shape_histograms[[i]]  |> cen_scal() |> dist() |> as.matrix() |> norm()
         i <- i + 1
       }
     }
     
-    # shape_features <- list(
-    #   lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(1, 0, 0))),
-    #   lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(0, 1, 0))),
-    #   lapply(seq_cg, function(x) orientedangle1(x[-1,], v = c(0, 0, 1))),
-    #   lapply(seq_cg, by3roworientedangle4, v = c(1, 0, 0)),
-    #   lapply(seq_cg, by3roworientedangle4, v = c(0, 1, 0)),
-    #   lapply(seq_cg, by3roworientedangle4, v = c(0, 0, 1)),
-    #   lapply(seq_cg, orienteddistance1, v = c(1, 0, 0)),
-    #   lapply(seq_cg, orienteddistance1, v = c(0, 1, 0)),
-    #   lapply(seq_cg, orienteddistance1, v = c(0, 0, 1)),
-    #   lapply(seq_cg, by3roworienteddistance4, v = c(1, 0, 0)),
-    #   lapply(seq_cg, by3roworienteddistance4, v = c(0, 1, 0)),
-    #   lapply(seq_cg, by3roworienteddistance4, v = c(0, 0, 1))
-    # ) 
-    # shape_histograms <- vector(length = length(shape_features), mode = "list")
-    # for(i in seq_along(shape_features)){
-    #   shape_histograms[[i]] <- feature_histograms(shape_features[[i]], bin_count = bins)
-    #   shape_histograms[[i]] <- shape_histograms[[i]]  |> cen_scal() |> dist() |> as.matrix() |> norm()
-    # }
-    
     coord_features <- 
       coordinate_histograms(seq_cg,  bin_count = bins) |> 
-      split_coord_histograms(ncol(seq_cg[[1]])) |>
-      lapply(function(x) x |> cen_scal() |> dist() |> as.matrix() |> norm())
+      split_coord_histograms(ncol(seq_cg[[1]])) 
+    coord_features <- 
+      lapply(coord_features, function(x) x |> cen_scal() |> dist() |> as.matrix() |> norm())
     combine_distances(
       c(shape_histograms, coord_features), 
       p = power

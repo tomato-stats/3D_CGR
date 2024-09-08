@@ -27,14 +27,11 @@ double angle(arma::rowvec a, arma::rowvec b) {
 // Calculates the oriented angle between two vectors
 // For our particular application, when the norm is zero, we set the angle between points to be zero, This can literally only happen when there are many consecutive identical nucleotides in the sequence. 
 double oriented_angle(arma::rowvec  a, arma::rowvec  b, arma::rowvec  n) {
-  double norm_a = arma::norm(a);
-  double norm_b = arma::norm(b);
-  
-  if (norm_a == 0.0 || norm_b == 0.0) {
-    return 0;
+  if (arma::norm(a) * arma::norm(b) == 0.0) {
+    return 0.0;
   }
   
-  double x =  (arma::dot(a, b) / (norm_a * norm_b));
+  double x =  (arma::dot(a, b) / (arma::norm(a) *  arma::norm(b)));
   if(x > 1){
     x = 1.0;
   } else if(x < -1){
